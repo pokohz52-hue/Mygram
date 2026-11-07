@@ -17,6 +17,10 @@ def hash_password(password: str, salt: str = None) -> tuple[str, str]:
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
+        # Включение режима WAL для многопоточной скорости SQLite
+        await db.execute("PRAGMA journal_mode = WAL")
+        await db.execute("PRAGMA synchronous = NORMAL")
+
         # Пользователи
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -31,16 +35,18 @@ async def init_db():
                 session_token TEXT UNIQUE
             )
         """)
-        # Сообщения (с поддержкой медиа, аудио, ответов и закрепов)
+        # Сообщения
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sender TEXT NOT NULL,
                 recipient TEXT NOT NULL,
                 text TEXT NOT NULL,
-                media_type TEXT DEFAULT 'text', -- 'text', 'image', 'audio'
+                media_type TEXT DEFAULT 'text',
                 media_data TEXT DEFAULT '',
+                is_spoiler INTEGER DEFAULT 0,
                 reply_to_id INTEGER DEFAULT 0,
+                forward_from TEXT DEFAULT '',
                 is_pinned INTEGER DEFAULT 0,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_read INTEGER DEFAULT 0
@@ -57,7 +63,7 @@ async def init_db():
                 UNIQUE(target_type, target_id, username)
             )
         """)
-        # Истории (Stories)
+        # Истории
         await db.execute("""
             CREATE TABLE IF NOT EXISTS stories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,8 +81,7 @@ async def init_db():
                 tag TEXT UNIQUE NOT NULL,
                 description TEXT DEFAULT '',
                 owner TEXT NOT NULL,
-                is_verified INTEGER DEFAULT 0,
-                pinned_post_id INTEGER DEFAULT 0
+                is_verified INTEGER DEFAULT 0
             )
         """)
         # Подписчики каналов
@@ -87,7 +92,7 @@ async def init_db():
                 PRIMARY KEY (channel_id, username)
             )
         """)
-        # Посты каналов (с медиа)
+        # Посты каналов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,10 +101,24 @@ async def init_db():
                 text TEXT NOT NULL,
                 media_type TEXT DEFAULT 'text',
                 media_data TEXT DEFAULT '',
+                is_spoiler INTEGER DEFAULT 0,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         await db.commit()
+
+# Автоматический фоновый процесс очистки старых историй (раз в 30 минут)
+async def auto_cleaner_task():
+    while True:
+        try:
+            await asyncio.sleep(1800)
+            async with aiosqlite.connect(DB_NAME) as db:
+                await db.execute("DELETE FROM stories WHERE timestamp < datetime('now', '-1 day')")
+                await db.commit()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[AutoCleaner Error]: {e}")
 
 async def get_reactions(db, target_type, target_id):
     cursor = await db.execute("""
@@ -117,7 +136,7 @@ async def index_handler(request):
     return web.FileResponse('index.html')
 
 async def ws_handler(request):
-    ws = web.WebSocketResponse(max_msg_size=50*1024*1024) # 50 МБ под фото и голосовые
+    ws = web.WebSocketResponse(max_msg_size=60*1024*1024)
     await ws.prepare(request)
     current_user = None
 
@@ -245,7 +264,6 @@ async def ws_handler(request):
                         await db.commit()
                     await ws.send_str(json.dumps({"action": "status_updated", "status": new_status}))
 
-                # Получение и публикация Историй (Stories)
                 elif action == "get_stories" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
@@ -271,7 +289,6 @@ async def ws_handler(request):
                     for client in online_users.values():
                         if not client.closed: await client.send_str(bcast)
 
-                # Поиск
                 elif action == "search" and current_user:
                     q = data.get("query", "").strip().lower().replace("@", "")
                     if not q: continue
@@ -341,7 +358,8 @@ async def ws_handler(request):
                         await db.commit()
                         cursor = await db.execute("""
                             SELECT m.id, m.sender, m.recipient, m.text, m.media_type, m.media_data, 
-                                   m.reply_to_id, m.is_pinned, strftime('%H:%M', m.timestamp), m.is_read,
+                                   m.reply_to_id, m.is_pinned, m.is_spoiler, m.forward_from,
+                                   strftime('%H:%M', m.timestamp), m.is_read,
                                    rm.sender, rm.text
                             FROM messages m
                             LEFT JOIN messages rm ON m.reply_to_id = rm.id
@@ -356,8 +374,9 @@ async def ws_handler(request):
                             item = {
                                 "id": r[0], "sender": r[1], "recipient": r[2], "text": r[3],
                                 "media_type": r[4], "media_data": r[5], "reply_to_id": r[6],
-                                "is_pinned": bool(r[7]), "time": r[8] or "12:00", "is_read": bool(r[9]),
-                                "reply_user": r[10], "reply_text": r[11], "reactions": reacts
+                                "is_pinned": bool(r[7]), "is_spoiler": bool(r[8]), "forward_from": r[9],
+                                "time": r[10] or "12:00", "is_read": bool(r[11]),
+                                "reply_user": r[12], "reply_text": r[13], "reactions": reacts
                             }
                             if r[7]: pinned_msg = item
                             history.append(item)
@@ -375,6 +394,8 @@ async def ws_handler(request):
                     media_type = data.get("media_type", "text")
                     media_data = data.get("media_data", "")
                     reply_id = int(data.get("reply_to_id", 0))
+                    is_spoiler = 1 if data.get("is_spoiler") else 0
+                    forward_from = data.get("forward_from", "")
 
                     if not text and not media_data: continue
 
@@ -386,9 +407,9 @@ async def ws_handler(request):
                             if r_row: reply_user, reply_text = r_row[0], r_row[1]
 
                         cursor = await db.execute("""
-                            INSERT INTO messages (sender, recipient, text, media_type, media_data, reply_to_id, is_read) 
-                            VALUES (?, ?, ?, ?, ?, ?, 0)
-                        """, (current_user, target, text, media_type, media_data, reply_id))
+                            INSERT INTO messages (sender, recipient, text, media_type, media_data, reply_to_id, is_spoiler, forward_from, is_read) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                        """, (current_user, target, text, media_type, media_data, reply_id, is_spoiler, forward_from))
                         await db.commit()
                         msg_id = cursor.lastrowid
                         cursor = await db.execute("SELECT strftime('%H:%M', timestamp) FROM messages WHERE id = ?", (msg_id,))
@@ -396,13 +417,32 @@ async def ws_handler(request):
 
                     payload = {
                         "action": "new_msg", "id": msg_id, "sender": current_user, "recipient": target,
-                        "text": text, "media_type": media_type, "media_data": media_data,
-                        "reply_to_id": reply_id, "reply_user": reply_user, "reply_text": reply_text,
-                        "time": msg_time, "is_read": False, "reactions": []
+                        "text": text, "media_type": media_type, "media_data": media_data, "is_spoiler": bool(is_spoiler),
+                        "forward_from": forward_from, "reply_to_id": reply_id, "reply_user": reply_user,
+                        "reply_text": reply_text, "time": msg_time, "is_read": False, "reactions": []
                     }
                     if target in online_users:
                         await online_users[target].send_str(json.dumps(payload))
                     await ws.send_str(json.dumps(payload))
+
+                    # Автоматический Smart AI Bot (@ai)
+                    if text.startswith("@ai"):
+                        prompt = text.replace("@ai", "").strip()
+                        ai_resp = f"🤖 [AI-Assistant]: Запрос принят! «{prompt}». Всё работает в реальном времени!" if prompt else "🤖 [AI-Assistant]: Чем могу помочь?"
+                        await asyncio.sleep(0.5)
+                        async with aiosqlite.connect(DB_NAME) as db:
+                            c = await db.execute("""
+                                INSERT INTO messages (sender, recipient, text, is_read) VALUES ('AI Assistant', ?, ?, 1)
+                            """, (current_user, ai_resp))
+                            await db.commit()
+                            ai_id = c.lastrowid
+                        ai_payload = json.dumps({
+                            "action": "new_msg", "id": ai_id, "sender": "AI Assistant", "recipient": current_user,
+                            "text": ai_resp, "media_type": "text", "media_data": "", "is_spoiler": False,
+                            "forward_from": "", "reply_to_id": msg_id, "reply_user": current_user,
+                            "reply_text": text, "time": "сейчас", "is_read": True, "reactions": []
+                        })
+                        await ws.send_str(ai_payload)
 
                 elif action == "pin_msg" and current_user:
                     msg_id = data.get("id")
@@ -456,7 +496,6 @@ async def ws_handler(request):
                             if row[0] in online_users: await online_users[row[0]].send_str(del_payload)
                             if row[1] in online_users: await online_users[row[1]].send_str(del_payload)
 
-                # Каналы
                 elif action == "get_channels" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
@@ -511,12 +550,15 @@ async def ws_handler(request):
                 elif action == "get_channel_posts" and current_user:
                     ch_id = data.get("channel_id")
                     async with aiosqlite.connect(DB_NAME) as db:
-                        cur = await db.execute("SELECT id, sender, text, media_type, media_data, strftime('%H:%M', timestamp) FROM channel_posts WHERE channel_id = ? ORDER BY id ASC", (ch_id,))
+                        cur = await db.execute("SELECT id, sender, text, media_type, media_data, is_spoiler, strftime('%H:%M', timestamp) FROM channel_posts WHERE channel_id = ? ORDER BY id ASC", (ch_id,))
                         rows = await cur.fetchall()
                         posts = []
                         for r in rows:
                             reacts = await get_reactions(db, "post", r[0])
-                            posts.append({"id": r[0], "sender": r[1], "text": r[2], "media_type": r[3], "media_data": r[4], "time": r[5], "reactions": reacts})
+                            posts.append({
+                                "id": r[0], "sender": r[1], "text": r[2], "media_type": r[3],
+                                "media_data": r[4], "is_spoiler": bool(r[5]), "time": r[6], "reactions": reacts
+                            })
                     await ws.send_str(json.dumps({"action": "channel_history", "channel_id": ch_id, "items": posts}))
 
                 elif action == "post_to_channel" and current_user:
@@ -524,13 +566,17 @@ async def ws_handler(request):
                     text = data.get("text", "").strip()
                     media_type = data.get("media_type", "text")
                     media_data = data.get("media_data", "")
+                    is_spoiler = 1 if data.get("is_spoiler") else 0
                     if not text and not media_data: continue
 
                     async with aiosqlite.connect(DB_NAME) as db:
                         cur = await db.execute("SELECT owner FROM channels WHERE id = ?", (ch_id,))
                         row = await cur.fetchone()
                         if not row or row[0] != current_user: continue
-                        cur = await db.execute("INSERT INTO channel_posts (channel_id, sender, text, media_type, media_data) VALUES (?, ?, ?, ?, ?)", (ch_id, current_user, text, media_type, media_data))
+                        cur = await db.execute("""
+                            INSERT INTO channel_posts (channel_id, sender, text, media_type, media_data, is_spoiler) 
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (ch_id, current_user, text, media_type, media_data, is_spoiler))
                         await db.commit()
                         p_id = cur.lastrowid
                         cur = await db.execute("SELECT strftime('%H:%M', timestamp) FROM channel_posts WHERE id = ?", (p_id,))
@@ -538,7 +584,11 @@ async def ws_handler(request):
                         cur = await db.execute("SELECT username FROM channel_subscribers WHERE channel_id = ?", (ch_id,))
                         subscribers = [r[0] for r in await cur.fetchall()]
 
-                    payload = json.dumps({"action": "new_post", "channel_id": ch_id, "id": p_id, "sender": current_user, "text": text, "media_type": media_type, "media_data": media_data, "time": p_time, "reactions": []})
+                    payload = json.dumps({
+                        "action": "new_post", "channel_id": ch_id, "id": p_id, "sender": current_user,
+                        "text": text, "media_type": media_type, "media_data": media_data, "is_spoiler": bool(is_spoiler),
+                        "time": p_time, "reactions": []
+                    })
                     for s in subscribers:
                         if s in online_users: await online_users[s].send_str(payload)
 
@@ -552,12 +602,13 @@ async def ws_handler(request):
 
 async def make_app():
     await init_db()
-    app = web.Application(client_max_size=50*1024*1024)
+    asyncio.create_task(auto_cleaner_task())
+    app = web.Application(client_max_size=60*1024*1024)
     app.router.add_get('/', index_handler)
     app.router.add_get('/ws', ws_handler)
     return app
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
-    print(f"💎 MyGram MAX запущен: http://127.0.0.1:{port}")
+    print(f"💎 MyGram Ultra запущен: http://127.0.0.1:{port}")
     web.run_app(make_app(), host='0.0.0.0', port=port)
