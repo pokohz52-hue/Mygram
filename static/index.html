@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MyGram Cyber-OS</title>
+    <title>MyGram Quantum</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-body: #05070e;
-            --sidebar-bg: rgba(10, 14, 26, 0.82);
-            --chat-bg: rgba(7, 10, 19, 0.5);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --glass-card: rgba(255, 255, 255, 0.035);
+            --bg-body: #060812;
+            --sidebar-bg: rgba(11, 16, 30, 0.85);
+            --chat-bg: rgba(7, 11, 22, 0.55);
+            --glass-border: rgba(255, 255, 255, 0.09);
+            --glass-card: rgba(255, 255, 255, 0.04);
             --glass-hover: rgba(255, 255, 255, 0.08);
             --primary: #6366f1;
             --primary-glow: rgba(99, 102, 241, 0.5);
@@ -22,7 +22,7 @@
             --text-muted: #94a3b8;
             --text-dim: #64748b;
             --msg-out: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-            --msg-in: rgba(255, 255, 255, 0.05);
+            --msg-in: rgba(255, 255, 255, 0.06);
             --radius-bubble: 20px;
             --blur: blur(35px);
         }
@@ -30,17 +30,16 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background: var(--bg-body); height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--text-main); overflow: hidden; }
 
-        /* Neural Canvas Background */
-        #neuralCanvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.55; }
+        #neuralCanvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.6; }
 
         .app-window {
             width: 100vw; height: 100vh; display: flex; position: relative;
-            background: rgba(10, 15, 29, 0.72); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+            background: rgba(11, 17, 33, 0.75); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
             border: 1px solid var(--glass-border); z-index: 1; overflow: hidden;
         }
 
         @media (min-width: 900px) {
-            .app-window { width: 96vw; height: 94vh; border-radius: 32px; box-shadow: 0 40px 100px rgba(0,0,0,0.95), 0 0 50px rgba(99,102,241,0.15); }
+            .app-window { width: 96vw; height: 94vh; border-radius: 32px; box-shadow: 0 40px 100px rgba(0,0,0,0.95), 0 0 50px rgba(99,102,241,0.2); }
         }
 
         /* САЙДБАР */
@@ -66,7 +65,6 @@
 
         .brand-title { font-weight: 800; font-size: 1.25rem; background: linear-gradient(90deg, #818cf8, var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-        /* Крипто-бейджи TON / Stars */
         .crypto-bar { display: flex; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); }
         .crypto-chip { flex: 1; padding: 6px 10px; border-radius: 12px; background: var(--glass-card); border: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: 0.2s; }
         .crypto-chip:hover { border-color: var(--accent-cyan); background: rgba(255,255,255,0.06); }
@@ -90,6 +88,8 @@
         .items-list { flex: 1; overflow-y: auto; padding: 8px 12px; }
         .items-list::-webkit-scrollbar { width: 4px; }
         .items-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+        .search-section-title { padding: 10px 14px 4px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; }
 
         .item-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 18px; cursor: pointer; transition: 0.2s; margin-bottom: 4px; }
         .item-card:hover { background: var(--glass-hover); }
@@ -129,7 +129,7 @@
         .pinned-text { font-size: 0.82rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%; }
 
         .reply-preview-bar {
-            display: none; padding: 10px 24px; background: rgba(13, 19, 33, 0.9); border-top: 1px solid var(--glass-border);
+            display: none; padding: 10px 24px; background: rgba(13, 19, 33, 0.95); border-top: 1px solid var(--glass-border);
             align-items: center; justify-content: space-between;
         }
         .reply-line { border-left: 3px solid var(--accent-cyan); padding-left: 10px; }
@@ -158,7 +158,6 @@
         .msg-wrap.out .msg-bubble { background: var(--msg-out); color: #fff; border-bottom-right-radius: 4px; }
         .msg-wrap.in .msg-bubble { background: var(--msg-in); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--glass-border); }
 
-        /* ОПРОСЫ (POLLS) */
         .poll-card { min-width: 260px; padding: 4px 0; }
         .poll-question { font-weight: 700; font-size: 1rem; margin-bottom: 12px; }
         .poll-option-btn {
@@ -170,7 +169,6 @@
         .poll-fill { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(0,242,254,0.25); z-index: 0; transition: width 0.4s ease; }
         .poll-text-rel { position: relative; z-index: 1; display: flex; justify-content: space-between; }
 
-        /* СПОЙЛЕР */
         .spoiler-wrap { position: relative; display: inline-block; overflow: hidden; border-radius: 14px; cursor: pointer; margin-top: 6px; }
         .spoiler-blur { filter: blur(25px); transition: filter 0.3s ease; }
         .spoiler-wrap.revealed .spoiler-blur { filter: none; }
@@ -179,7 +177,6 @@
 
         .msg-img { max-width: 100%; max-height: 320px; border-radius: 14px; display: block; }
         
-        /* Визуализатор записи звука */
         .voice-recording-overlay {
             display: none; flex: 1; align-items: center; gap: 12px; padding: 0 16px;
             background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4);
@@ -257,7 +254,7 @@
                         <span id="myStatusEmoji" style="font-size:0.9rem;">🚀</span>
                         <span id="myBadge"></span>
                     </div>
-                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Neural OS ⚡</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Quantum OS ⚡</div>
                 </div>
             </div>
             <div style="display:flex; gap:6px;">
@@ -266,17 +263,15 @@
             </div>
         </div>
 
-        <!-- КРИПТО-БАЛАНС -->
         <div class="crypto-bar">
             <div class="crypto-chip" onclick="openTransferModal()">
-                <span>⭐️ Stars:</span> <strong id="valStars" style="color:#fbbf24;">250</strong>
+                <span>⭐️ Stars:</span> <strong id="valStars" style="color:#fbbf24;">300</strong>
             </div>
             <div class="crypto-chip">
                 <span>💎 TON:</span> <strong id="valTon" style="color:var(--accent-cyan);">5.00</strong>
             </div>
         </div>
 
-        <!-- STORIES -->
         <div class="stories-bar" id="storiesList">
             <div class="story-node my-add" onclick="openAddStory()">
                 <div class="story-ring"><div class="story-avatar">+</div></div>
@@ -285,7 +280,7 @@
         </div>
 
         <div class="search-box">
-            <input type="text" id="searchBar" class="input-glass" placeholder="🔍 Поиск людей, каналов или @ai..." oninput="handleSearch(this.value)">
+            <input type="text" id="searchBar" class="input-glass" placeholder="🔍 Поиск людей, каналов или сообщений..." oninput="handleSearch(this.value)">
         </div>
 
         <div class="tabs">
@@ -347,7 +342,6 @@
             <button class="btn-icon" id="spoilerToggleBtn" onclick="toggleSpoilerState()" title="Спойлер">🙈</button>
             <button class="btn-icon" id="voiceBtn" onclick="toggleVoiceRecording()">🎤</button>
 
-            <!-- Эквалайзер голосового -->
             <div class="voice-recording-overlay" id="voiceRecordingBox">
                 <div style="display:flex; gap:3px; align-items:center;">
                     <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
@@ -385,6 +379,18 @@
         <p style="text-align:center; font-size:0.85rem; color:var(--text-muted); cursor:pointer;" onclick="toggleAuthForm('login')">
             Есть аккаунт? <span style="color:var(--accent-cyan); font-weight:700;">Войти</span>
         </p>
+    </div>
+</div>
+
+<!-- Модалка редактирования сообщения -->
+<div class="glass-modal" id="modalEdit">
+    <div class="modal-card">
+        <h3>Редактировать сообщение ✏️</h3>
+        <input type="text" id="editMsgText" class="input-glass">
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalEdit')">Отмена</button>
+            <button class="btn-action" onclick="submitEditMessage()">Сохранить</button>
+        </div>
     </div>
 </div>
 
@@ -487,7 +493,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-    // ИНТЕРАКТИВНЫЙ НЕОНОВЫЙ ФОН CANVAS (Neural Web)
+    // Canvas Neural Web Background
     const canvas = document.getElementById("neuralCanvas");
     const ctx = canvas.getContext("2d");
     let particles = [];
@@ -532,7 +538,6 @@
     }
     animateNeuralWeb();
 
-    // ЛОГИКА МЕССЕНДЖЕРА
     let ws = null;
     let me = "";
     let currentTab = "chats";
@@ -540,7 +545,9 @@
     let replyTarget = null;
     let currentPinnedId = null;
     let forwardTargetMsg = null;
+    let editTargetId = null;
     let isSpoilerActive = false;
+    let searchDebounce = null;
 
     let mediaRecorder = null;
     let audioChunks = [];
@@ -614,6 +621,9 @@
             else if (data.action === "channels_list") {
                 renderChannels(data.items);
             }
+            else if (data.action === "search_results") {
+                renderSearchResults(data.users || [], data.channels || [], data.messages || []);
+            }
             else if (data.action === "history") {
                 renderHistory(data.items);
                 setChatOnlineStatus(data.online);
@@ -630,6 +640,19 @@
                     playSound();
                     haptic();
                     loadTabContent();
+                }
+            }
+            else if (data.action === "msg_edited") {
+                const el = document.getElementById(`msg-text-${data.id}`);
+                if (el) {
+                    el.innerText = data.text;
+                    const meta = el.parentElement.querySelector('.msg-meta');
+                    if (meta && !meta.querySelector('.edit-badge')) {
+                        const s = document.createElement("span");
+                        s.className = "edit-badge";
+                        s.innerText = "(ред.)";
+                        meta.prepend(s);
+                    }
                 }
             }
             else if (data.action === "pinned_update") {
@@ -778,10 +801,78 @@
         loadTabContent();
     }
 
+    // Исправленный умный поиск
     function handleSearch(val) {
+        clearTimeout(searchDebounce);
         const q = val.trim();
-        if (!q) return loadTabContent();
-        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: "search", query: q }));
+        if (!q) {
+            loadTabContent();
+            return;
+        }
+        searchDebounce = setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: "search", query: q }));
+            }
+        }, 150);
+    }
+
+    function renderSearchResults(users, channels, messages) {
+        const box = document.getElementById("itemsList");
+        box.innerHTML = "";
+
+        if (!users.length && !channels.length && !messages.length) {
+            box.innerHTML = "<div style='padding:24px; color:var(--text-muted); text-align:center; font-size:0.9rem;'>Ничего не найдено 🔍</div>";
+            return;
+        }
+
+        if (users.length) {
+            box.innerHTML += `<div class="search-section-title" style="color:var(--accent-cyan);">Люди (${users.length})</div>`;
+            users.forEach(u => {
+                const isMe = u.username === me;
+                box.innerHTML += `
+                    <div class="item-card" onclick="openChat('${u.username}')">
+                        <div class="avatar-wrap">
+                            <div class="avatar">${isMe ? '🔖' : u.username[0].toUpperCase()}</div>
+                            <div class="status-dot ${u.online ? 'online' : ''}"></div>
+                        </div>
+                        <div class="item-info">
+                            <span class="item-name">${isMe ? 'Избранное' : u.username} ${u.status || ''} ${u.verified ? '<span class="badge-verified">✓</span>' : ''}</span>
+                            <span class="item-desc">${u.bio || 'Нажмите, чтобы начать диалог'}</span>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        if (channels.length) {
+            box.innerHTML += `<div class="search-section-title" style="color:#c084fc;">Каналы (${channels.length})</div>`;
+            channels.forEach(ch => {
+                box.innerHTML += `
+                    <div class="item-card" onclick='openChannel(${JSON.stringify(ch)})'>
+                        <div class="avatar-wrap"><div class="avatar" style="background:#0284c7;">📢</div></div>
+                        <div class="item-info">
+                            <span class="item-name">${ch.name} ${ch.verified ? '<span class="badge-verified">✓</span>' : ''}</span>
+                            <span class="item-desc">@${ch.tag} • ${ch.subs} подписчиков</span>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        if (messages.length) {
+            box.innerHTML += `<div class="search-section-title" style="color:#fbbf24;">Сообщения (${messages.length})</div>`;
+            messages.forEach(m => {
+                box.innerHTML += `
+                    <div class="item-card" onclick="openChat('${m.peer}')">
+                        <div class="avatar-wrap"><div class="avatar" style="background:#3b82f6;">💬</div></div>
+                        <div class="item-info">
+                            <div class="item-top">
+                                <span class="item-name">Диалог с @${m.peer}</span>
+                                <span class="item-time">${m.time}</span>
+                            </div>
+                            <span class="item-desc">${escapeHtml(m.text)}</span>
+                        </div>
+                    </div>`;
+            });
+        }
     }
 
     function loadTabContent() {
@@ -931,7 +1022,18 @@
         showToast(isSpoilerActive ? "Спойлер включен 🙈" : "Спойлер выключен");
     }
 
-    // Опросы
+    function openEditModal(id, currentText) {
+        editTargetId = id;
+        document.getElementById("editMsgText").value = currentText;
+        document.getElementById("modalEdit").classList.add("active");
+    }
+    function submitEditMessage() {
+        const text = document.getElementById("editMsgText").value.trim();
+        if (!text || !editTargetId) return;
+        ws.send(JSON.stringify({ action: "edit_msg", id: editTargetId, text }));
+        closeModal("modalEdit");
+    }
+
     function openPollCreator() { document.getElementById("modalPoll").classList.add("active"); }
     function submitCreatePoll() {
         const q = document.getElementById("pollQuestion").value.trim();
@@ -993,6 +1095,7 @@
         const box = document.getElementById("msgBox");
         const isMe = m.sender === me;
         const checks = isMe ? `<span class="read-check">${m.is_read ? '✓✓' : '✓'}</span>` : '';
+        const editedTag = m.is_edited ? '<span class="edit-badge" style="opacity:0.6; font-size:0.7rem;">(ред.)</span>' : '';
         const wrap = document.createElement("div");
         wrap.className = `msg-wrap ${isMe ? 'out' : 'in'}`;
         wrap.id = `msg-${m.id}`;
@@ -1052,6 +1155,7 @@
                 <span class="quick-react-item" onclick="sendReaction('msg', ${m.id}, '👍')">👍</span>
                 <span class="quick-react-item" onclick="setReply(${m.id}, '${m.sender}', '${escapeJs(m.text)}')">↩️</span>
                 <span class="quick-react-item" onclick='openForwardModal(${JSON.stringify(m)})'>↗️</span>
+                ${isMe && m.text ? `<span class="quick-react-item" onclick="openEditModal(${m.id}, '${escapeJs(m.text)}')">✏️</span>` : ''}
                 <span class="quick-react-item" onclick="pinMessage(${m.id})">📌</span>
                 ${isMe ? `<span class="quick-react-item" onclick="deleteMsg(${m.id})">🗑️</span>` : ''}
             </div>
@@ -1059,8 +1163,8 @@
                 ${fwdHtml}
                 ${quoteContent}
                 ${mediaContent}
-                ${m.text ? `<div>${escapeHtml(m.text)}</div>` : ''}
-                <div class="msg-meta"><span>${m.time}</span> ${checks}</div>
+                ${m.text ? `<div id="msg-text-${m.id}">${escapeHtml(m.text)}</div>` : ''}
+                <div class="msg-meta">${editedTag} <span>${m.time}</span> ${checks}</div>
             </div>
             <div class="reaction-bar" id="react-msg-${m.id}"></div>
         `;
@@ -1215,7 +1319,7 @@
         setTimeout(() => t.style.display = "none", 2500);
     }
 
-    function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+    function escapeHtml(t) { return (t || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
     function escapeJs(t) { return (t || '').replace(/'/g, "\\'").replace(/"/g, '\\"'); }
 
     window.onload = initWS;
