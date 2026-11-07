@@ -20,30 +20,28 @@ async def init_db():
         await db.execute("PRAGMA journal_mode = WAL")
         await db.execute("PRAGMA synchronous = NORMAL")
 
-        # Пользователи (с балансом Stars / TON)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
+                username TEXT UNIQUE COLLATE NOCASE,
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
                 bio TEXT DEFAULT 'Cyberspace traveler ⚡',
                 emoji_status TEXT DEFAULT '🚀',
-                stars_balance INTEGER DEFAULT 150,
-                ton_balance REAL DEFAULT 2.5,
+                stars_balance INTEGER DEFAULT 250,
+                ton_balance REAL DEFAULT 5.0,
                 is_verified INTEGER DEFAULT 0,
                 is_admin INTEGER DEFAULT 0,
                 session_token TEXT UNIQUE
             )
         """)
-        # Сообщения (с поддержкой опросов)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sender TEXT NOT NULL,
-                recipient TEXT NOT NULL,
+                sender TEXT NOT NULL COLLATE NOCASE,
+                recipient TEXT NOT NULL COLLATE NOCASE,
                 text TEXT NOT NULL,
-                media_type TEXT DEFAULT 'text', -- 'text', 'image', 'audio', 'poll'
+                media_type TEXT DEFAULT 'text',
                 media_data TEXT DEFAULT '',
                 poll_data TEXT DEFAULT '',
                 is_spoiler INTEGER DEFAULT 0,
@@ -54,62 +52,56 @@ async def init_db():
                 is_read INTEGER DEFAULT 0
             )
         """)
-        # Голоса в опросах
         await db.execute("""
             CREATE TABLE IF NOT EXISTS poll_votes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 message_id INTEGER NOT NULL,
-                username TEXT NOT NULL,
+                username TEXT NOT NULL COLLATE NOCASE,
                 option_index INTEGER NOT NULL,
                 UNIQUE(message_id, username)
             )
         """)
-        # Реакции
         await db.execute("""
             CREATE TABLE IF NOT EXISTS reactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 target_type TEXT NOT NULL,
                 target_id INTEGER NOT NULL,
-                username TEXT NOT NULL,
+                username TEXT NOT NULL COLLATE NOCASE,
                 emoji TEXT NOT NULL,
                 UNIQUE(target_type, target_id, username)
             )
         """)
-        # Истории
         await db.execute("""
             CREATE TABLE IF NOT EXISTS stories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL,
+                username TEXT NOT NULL COLLATE NOCASE,
                 media_data TEXT NOT NULL,
                 caption TEXT DEFAULT '',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # Каналы
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                tag TEXT UNIQUE NOT NULL,
+                tag TEXT UNIQUE NOT NULL COLLATE NOCASE,
                 description TEXT DEFAULT '',
-                owner TEXT NOT NULL,
+                owner TEXT NOT NULL COLLATE NOCASE,
                 is_verified INTEGER DEFAULT 0
             )
         """)
-        # Подписчики
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_subscribers (
                 channel_id INTEGER,
-                username TEXT,
+                username TEXT COLLATE NOCASE,
                 PRIMARY KEY (channel_id, username)
             )
         """)
-        # Посты каналов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 channel_id INTEGER,
-                sender TEXT NOT NULL,
+                sender TEXT NOT NULL COLLATE NOCASE,
                 text TEXT NOT NULL,
                 media_type TEXT DEFAULT 'text',
                 media_data TEXT DEFAULT '',
@@ -119,18 +111,6 @@ async def init_db():
             )
         """)
         await db.commit()
-
-async def auto_cleaner_task():
-    while True:
-        try:
-            await asyncio.sleep(1800)
-            async with aiosqlite.connect(DB_NAME) as db:
-                await db.execute("DELETE FROM stories WHERE timestamp < datetime('now', '-1 day')")
-                await db.commit()
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            pass
 
 async def get_poll_results(db, msg_id):
     cursor = await db.execute("SELECT option_index, COUNT(*) FROM poll_votes WHERE message_id = ? GROUP BY option_index", (msg_id,))
@@ -153,7 +133,7 @@ async def index_handler(request):
     return web.FileResponse('index.html')
 
 async def ws_handler(request):
-    ws = web.WebSocketResponse(max_msg_size=70*1024*1024)
+    ws = web.WebSocketResponse(max_msg_size=100*1024*1024)
     await ws.prepare(request)
     current_user = None
 
@@ -256,6 +236,55 @@ async def ws_handler(request):
                         "action": "auth_success", "username": username, "verified": bool(is_ver),
                         "is_admin": bool(is_adm), "bio": "Cyberspace traveler ⚡", "emoji_status": "🚀",
                         "stars": 250, "ton": 5.0, "token": session_token
+                    }))
+
+                # ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ И РАСШИРЕННЫЙ ПОИСК
+                elif action == "search" and current_user:
+                    raw_q = data.get("query", "").strip()
+                    clean_q = raw_q.replace("@", "").lower()
+                    if not clean_q:
+                        await ws.send_str(json.dumps({"action": "search_results", "users": [], "channels": [], "messages": []}))
+                        continue
+
+                    pat = f"%{clean_q}%"
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        # 1. Поиск пользователей (включая тех, с кем еще нет чата)
+                        c_u = await db.execute("""
+                            SELECT username, is_verified, bio, emoji_status FROM users 
+                            WHERE username LIKE ? AND username != ? LIMIT 15
+                        """, (pat, current_user))
+                        found_users = [{
+                            "username": r[0], "verified": bool(r[1]), "bio": r[2], "status": r[3], "online": r[0] in online_users
+                        } for r in await c_u.fetchall()]
+
+                        # 2. Поиск каналов
+                        c_ch = await db.execute("""
+                            SELECT c.id, c.name, c.tag, c.description, c.owner, c.is_verified,
+                            (SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = c.id) as subs_count,
+                            EXISTS(SELECT 1 FROM channel_subscribers WHERE channel_id = c.id AND username = ?) as is_sub
+                            FROM channels c WHERE c.tag LIKE ? OR c.name LIKE ? LIMIT 15
+                        """, (current_user, pat, pat))
+                        found_channels = [{
+                            "id": r[0], "name": r[1], "tag": r[2], "desc": r[3], "owner": r[4],
+                            "verified": bool(r[5]), "subs": r[6], "is_sub": bool(r[7])
+                        } for r in await c_ch.fetchall()]
+
+                        # 3. Поиск по истории переписок
+                        c_m = await db.execute("""
+                            SELECT id, sender, recipient, text, strftime('%H:%M', timestamp) FROM messages
+                            WHERE (sender = ? OR recipient = ?) AND text LIKE ? AND text != ''
+                            ORDER BY id DESC LIMIT 10
+                        """, (current_user, current_user, pat))
+                        found_msgs = [{
+                            "id": r[0], "sender": r[1], "peer": r[2] if r[1] == current_user else r[1],
+                            "text": r[3], "time": r[4]
+                        } for r in await c_m.fetchall()]
+
+                    await ws.send_str(json.dumps({
+                        "action": "search_results",
+                        "users": found_users,
+                        "channels": found_channels,
+                        "messages": found_msgs
                     }))
 
                 elif action == "get_chats" and current_user:
@@ -369,11 +398,10 @@ async def ws_handler(request):
                         await online_users[target].send_str(json.dumps(payload))
                     await ws.send_str(json.dumps(payload))
 
-                    # AI-Bot Auto-Reply
                     if text.startswith("@ai"):
                         prompt = text.replace("@ai", "").strip()
-                        ai_resp = f"🤖 [Neural-AI]: Исполняю «{prompt}» на квантовой скорости!" if prompt else "🤖 [Neural-AI]: Системы в норме. Чем помочь?"
-                        await asyncio.sleep(0.4)
+                        ai_resp = f"🤖 [Quantum AI]: Запрос принят! «{prompt}» обработан в реальном времени!" if prompt else "🤖 [Quantum AI]: Все нейросети активны. Какой вопрос?"
+                        await asyncio.sleep(0.3)
                         async with aiosqlite.connect(DB_NAME) as db:
                             c = await db.execute("INSERT INTO messages (sender, recipient, text, is_read) VALUES ('AI Assistant', ?, ?, 1)", (current_user, ai_resp))
                             await db.commit()
@@ -572,13 +600,12 @@ async def ws_handler(request):
 
 async def make_app():
     await init_db()
-    asyncio.create_task(auto_cleaner_task())
-    app = web.Application(client_max_size=70*1024*1024)
+    app = web.Application(client_max_size=100*1024*1024)
     app.router.add_get('/', index_handler)
     app.router.add_get('/ws', ws_handler)
     return app
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
-    print(f"🚀 MyGram Neural-Cyber запущен: http://127.0.0.1:{port}")
+    print(f"🚀 MyGram Ultra-Max запущен: http://127.0.0.1:{port}")
     web.run_app(make_app(), host='0.0.0.0', port=port)
