@@ -23,12 +23,12 @@ async def init_db():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE COLLATE NOCASE,
+                username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
-                bio TEXT DEFAULT 'Cyberspace traveler ⚡',
+                bio TEXT DEFAULT '⚡ Cyber traveler',
                 emoji_status TEXT DEFAULT '🚀',
-                stars_balance INTEGER DEFAULT 250,
+                stars_balance INTEGER DEFAULT 300,
                 ton_balance REAL DEFAULT 5.0,
                 is_verified INTEGER DEFAULT 0,
                 is_admin INTEGER DEFAULT 0,
@@ -38,8 +38,8 @@ async def init_db():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sender TEXT NOT NULL COLLATE NOCASE,
-                recipient TEXT NOT NULL COLLATE NOCASE,
+                sender TEXT NOT NULL,
+                recipient TEXT NOT NULL,
                 text TEXT NOT NULL,
                 media_type TEXT DEFAULT 'text',
                 media_data TEXT DEFAULT '',
@@ -48,6 +48,7 @@ async def init_db():
                 reply_to_id INTEGER DEFAULT 0,
                 forward_from TEXT DEFAULT '',
                 is_pinned INTEGER DEFAULT 0,
+                is_edited INTEGER DEFAULT 0,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_read INTEGER DEFAULT 0
             )
@@ -56,7 +57,7 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS poll_votes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 message_id INTEGER NOT NULL,
-                username TEXT NOT NULL COLLATE NOCASE,
+                username TEXT NOT NULL,
                 option_index INTEGER NOT NULL,
                 UNIQUE(message_id, username)
             )
@@ -66,7 +67,7 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 target_type TEXT NOT NULL,
                 target_id INTEGER NOT NULL,
-                username TEXT NOT NULL COLLATE NOCASE,
+                username TEXT NOT NULL,
                 emoji TEXT NOT NULL,
                 UNIQUE(target_type, target_id, username)
             )
@@ -74,7 +75,7 @@ async def init_db():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS stories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL COLLATE NOCASE,
+                username TEXT NOT NULL,
                 media_data TEXT NOT NULL,
                 caption TEXT DEFAULT '',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -84,16 +85,16 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS channels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                tag TEXT UNIQUE NOT NULL COLLATE NOCASE,
+                tag TEXT UNIQUE NOT NULL,
                 description TEXT DEFAULT '',
-                owner TEXT NOT NULL COLLATE NOCASE,
+                owner TEXT NOT NULL,
                 is_verified INTEGER DEFAULT 0
             )
         """)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_subscribers (
                 channel_id INTEGER,
-                username TEXT COLLATE NOCASE,
+                username TEXT,
                 PRIMARY KEY (channel_id, username)
             )
         """)
@@ -101,7 +102,7 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS channel_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 channel_id INTEGER,
-                sender TEXT NOT NULL COLLATE NOCASE,
+                sender TEXT NOT NULL,
                 text TEXT NOT NULL,
                 media_type TEXT DEFAULT 'text',
                 media_data TEXT DEFAULT '',
@@ -111,6 +112,18 @@ async def init_db():
             )
         """)
         await db.commit()
+
+async def auto_cleaner_task():
+    while True:
+        try:
+            await asyncio.sleep(1800)
+            async with aiosqlite.connect(DB_NAME) as db:
+                await db.execute("DELETE FROM stories WHERE timestamp < datetime('now', '-1 day')")
+                await db.commit()
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass
 
 async def get_poll_results(db, msg_id):
     cursor = await db.execute("SELECT option_index, COUNT(*) FROM poll_votes WHERE message_id = ? GROUP BY option_index", (msg_id,))
@@ -133,7 +146,7 @@ async def index_handler(request):
     return web.FileResponse('index.html')
 
 async def ws_handler(request):
-    ws = web.WebSocketResponse(max_msg_size=100*1024*1024)
+    ws = web.WebSocketResponse(max_msg_size=75*1024*1024)
     await ws.prepare(request)
     current_user = None
 
@@ -173,7 +186,7 @@ async def ws_handler(request):
                     username = data.get("identifier", "").strip().lower()
                     password = data.get("password", "")
                     if not username or not password:
-                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните все поля"}))
+                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните логин и пароль"}))
                         continue
 
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -226,7 +239,7 @@ async def ws_handler(request):
 
                         await db.execute("""
                             INSERT INTO users (username, password_hash, password_salt, is_verified, is_admin, session_token, emoji_status, stars_balance, ton_balance)
-                            VALUES (?, ?, ?, ?, ?, ?, '🚀', 250, 5.0)
+                            VALUES (?, ?, ?, ?, ?, ?, '🚀', 300, 5.0)
                         """, (username, p_hash, p_salt, is_ver, is_adm, session_token))
                         await db.commit()
 
@@ -234,57 +247,55 @@ async def ws_handler(request):
                     online_users[current_user] = ws
                     await ws.send_str(json.dumps({
                         "action": "auth_success", "username": username, "verified": bool(is_ver),
-                        "is_admin": bool(is_adm), "bio": "Cyberspace traveler ⚡", "emoji_status": "🚀",
-                        "stars": 250, "ton": 5.0, "token": session_token
+                        "is_admin": bool(is_adm), "bio": "⚡ Cyber traveler", "emoji_status": "🚀",
+                        "stars": 300, "ton": 5.0, "token": session_token
                     }))
 
-                # ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ И РАСШИРЕННЫЙ ПОИСК
+                # Полнотекстовый всеобщий поиск
                 elif action == "search" and current_user:
-                    raw_q = data.get("query", "").strip()
-                    clean_q = raw_q.replace("@", "").lower()
-                    if not clean_q:
-                        await ws.send_str(json.dumps({"action": "search_results", "users": [], "channels": [], "messages": []}))
+                    q = data.get("query", "").strip().lower().replace("@", "")
+                    if not q:
                         continue
-
-                    pat = f"%{clean_q}%"
+                    search_pat = f"%{q}%"
                     async with aiosqlite.connect(DB_NAME) as db:
-                        # 1. Поиск пользователей (включая тех, с кем еще нет чата)
-                        c_u = await db.execute("""
+                        # Поиск пользователей
+                        cursor = await db.execute("""
                             SELECT username, is_verified, bio, emoji_status FROM users 
-                            WHERE username LIKE ? AND username != ? LIMIT 15
-                        """, (pat, current_user))
+                            WHERE username LIKE ? LIMIT 12
+                        """, (search_pat,))
                         found_users = [{
                             "username": r[0], "verified": bool(r[1]), "bio": r[2], "status": r[3], "online": r[0] in online_users
-                        } for r in await c_u.fetchall()]
+                        } for r in await cursor.fetchall()]
 
-                        # 2. Поиск каналов
-                        c_ch = await db.execute("""
+                        # Поиск каналов
+                        cursor = await db.execute("""
                             SELECT c.id, c.name, c.tag, c.description, c.owner, c.is_verified,
                             (SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = c.id) as subs_count,
                             EXISTS(SELECT 1 FROM channel_subscribers WHERE channel_id = c.id AND username = ?) as is_sub
-                            FROM channels c WHERE c.tag LIKE ? OR c.name LIKE ? LIMIT 15
-                        """, (current_user, pat, pat))
+                            FROM channels c WHERE c.tag LIKE ? OR c.name LIKE ? LIMIT 12
+                        """, (current_user, search_pat, search_pat))
                         found_channels = [{
                             "id": r[0], "name": r[1], "tag": r[2], "desc": r[3], "owner": r[4],
                             "verified": bool(r[5]), "subs": r[6], "is_sub": bool(r[7])
-                        } for r in await c_ch.fetchall()]
+                        } for r in await cursor.fetchall()]
 
-                        # 3. Поиск по истории переписок
-                        c_m = await db.execute("""
-                            SELECT id, sender, recipient, text, strftime('%H:%M', timestamp) FROM messages
+                        # Поиск сообщений
+                        cursor = await db.execute("""
+                            SELECT id, sender, recipient, text, strftime('%H:%M', timestamp)
+                            FROM messages 
                             WHERE (sender = ? OR recipient = ?) AND text LIKE ? AND text != ''
                             ORDER BY id DESC LIMIT 10
-                        """, (current_user, current_user, pat))
-                        found_msgs = [{
-                            "id": r[0], "sender": r[1], "peer": r[2] if r[1] == current_user else r[1],
-                            "text": r[3], "time": r[4]
-                        } for r in await c_m.fetchall()]
+                        """, (current_user, current_user, search_pat))
+                        found_messages = [{
+                            "id": r[0], "sender": r[1], "recipient": r[2], "text": r[3], "time": r[4],
+                            "peer": r[2] if r[1] == current_user else r[1]
+                        } for r in await cursor.fetchall()]
 
                     await ws.send_str(json.dumps({
                         "action": "search_results",
                         "users": found_users,
                         "channels": found_channels,
-                        "messages": found_msgs
+                        "messages": found_messages
                     }))
 
                 elif action == "get_chats" and current_user:
@@ -329,7 +340,7 @@ async def ws_handler(request):
                         await db.commit()
                         cursor = await db.execute("""
                             SELECT m.id, m.sender, m.recipient, m.text, m.media_type, m.media_data, m.poll_data,
-                                   m.reply_to_id, m.is_pinned, m.is_spoiler, m.forward_from,
+                                   m.reply_to_id, m.is_pinned, m.is_spoiler, m.forward_from, m.is_edited,
                                    strftime('%H:%M', m.timestamp), m.is_read, rm.sender, rm.text
                             FROM messages m
                             LEFT JOIN messages rm ON m.reply_to_id = rm.id
@@ -346,8 +357,8 @@ async def ws_handler(request):
                                 "id": r[0], "sender": r[1], "recipient": r[2], "text": r[3],
                                 "media_type": r[4], "media_data": r[5], "poll_data": json.loads(r[6]) if r[6] else None,
                                 "poll_results": poll_res, "reply_to_id": r[7], "is_pinned": bool(r[8]),
-                                "is_spoiler": bool(r[9]), "forward_from": r[10], "time": r[11] or "12:00",
-                                "is_read": bool(r[12]), "reply_user": r[13], "reply_text": r[14], "reactions": reacts
+                                "is_spoiler": bool(r[9]), "forward_from": r[10], "is_edited": bool(r[11]),
+                                "time": r[12] or "12:00", "is_read": bool(r[13]), "reply_user": r[14], "reply_text": r[15], "reactions": reacts
                             }
                             if r[8]: pinned_msg = item
                             history.append(item)
@@ -392,7 +403,7 @@ async def ws_handler(request):
                         "text": text, "media_type": media_type, "media_data": media_data,
                         "poll_data": data.get("poll_data"), "poll_results": {}, "is_spoiler": bool(is_spoiler),
                         "forward_from": forward_from, "reply_to_id": reply_id, "reply_user": reply_user,
-                        "reply_text": reply_text, "time": msg_time, "is_read": False, "reactions": []
+                        "reply_text": reply_text, "is_edited": False, "time": msg_time, "is_read": False, "reactions": []
                     }
                     if target in online_users:
                         await online_users[target].send_str(json.dumps(payload))
@@ -400,7 +411,7 @@ async def ws_handler(request):
 
                     if text.startswith("@ai"):
                         prompt = text.replace("@ai", "").strip()
-                        ai_resp = f"🤖 [Quantum AI]: Запрос принят! «{prompt}» обработан в реальном времени!" if prompt else "🤖 [Quantum AI]: Все нейросети активны. Какой вопрос?"
+                        ai_resp = f"🤖 [Neural-AI]: Исполняю «{prompt}» на квантовой скорости!" if prompt else "🤖 [Neural-AI]: Системы в норме. Чем помочь?"
                         await asyncio.sleep(0.3)
                         async with aiosqlite.connect(DB_NAME) as db:
                             c = await db.execute("INSERT INTO messages (sender, recipient, text, is_read) VALUES ('AI Assistant', ?, ?, 1)", (current_user, ai_resp))
@@ -410,8 +421,23 @@ async def ws_handler(request):
                             "action": "new_msg", "id": ai_id, "sender": "AI Assistant", "recipient": current_user,
                             "text": ai_resp, "media_type": "text", "media_data": "", "is_spoiler": False,
                             "forward_from": "", "reply_to_id": msg_id, "reply_user": current_user,
-                            "reply_text": text, "time": "сейчас", "is_read": True, "reactions": []
+                            "reply_text": text, "is_edited": False, "time": "сейчас", "is_read": True, "reactions": []
                         }))
+
+                elif action == "edit_msg" and current_user:
+                    msg_id = data.get("id")
+                    new_text = data.get("text", "").strip()
+                    if not new_text: continue
+
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cur = await db.execute("SELECT sender, recipient FROM messages WHERE id = ?", (msg_id,))
+                        row = await cur.fetchone()
+                        if row and row[0] == current_user:
+                            await db.execute("UPDATE messages SET text = ?, is_edited = 1 WHERE id = ?", (new_text, msg_id))
+                            await db.commit()
+                            edit_payload = json.dumps({"action": "msg_edited", "id": msg_id, "text": new_text})
+                            await ws.send_str(edit_payload)
+                            if row[1] in online_users: await online_users[row[1]].send_str(edit_payload)
 
                 elif action == "vote_poll" and current_user:
                     msg_id = data.get("id")
@@ -600,12 +626,13 @@ async def ws_handler(request):
 
 async def make_app():
     await init_db()
-    app = web.Application(client_max_size=100*1024*1024)
+    asyncio.create_task(auto_cleaner_task())
+    app = web.Application(client_max_size=75*1024*1024)
     app.router.add_get('/', index_handler)
     app.router.add_get('/ws', ws_handler)
     return app
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
-    print(f"🚀 MyGram Ultra-Max запущен: http://127.0.0.1:{port}")
+    print(f"💎 MyGram Quantum-Cyber запущен: http://127.0.0.1:{port}")
     web.run_app(make_app(), host='0.0.0.0', port=port)
