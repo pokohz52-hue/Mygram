@@ -8,7 +8,6 @@ online_users = {}
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
-        # Таблица пользователей
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,7 +18,6 @@ async def init_db():
                 is_admin INTEGER DEFAULT 0
             )
         """)
-        # Таблица личных сообщений
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +28,6 @@ async def init_db():
                 is_read INTEGER DEFAULT 0
             )
         """)
-        # Таблица каналов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,10 +35,16 @@ async def init_db():
                 tag TEXT UNIQUE NOT NULL,
                 description TEXT DEFAULT '',
                 avatar TEXT DEFAULT '',
-                owner TEXT NOT NULL
+                owner TEXT NOT NULL,
+                is_verified INTEGER DEFAULT 0
             )
         """)
-        # Подписчики каналов
+        # Миграция: если таблица создавалась ранее без is_verified
+        try:
+            await db.execute("ALTER TABLE channels ADD COLUMN is_verified INTEGER DEFAULT 0")
+        except:
+            pass
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_subscribers (
                 channel_id INTEGER,
@@ -49,7 +52,6 @@ async def init_db():
                 PRIMARY KEY (channel_id, username)
             )
         """)
-        # Посты в каналах
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +77,6 @@ async def ws_handler(request):
                 data = json.loads(msg.data)
                 action = data.get("action")
 
-                # --- АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ ---
                 if action == "device_init":
                     device_id = data.get("device_id", "").strip()
                     if not device_id: continue
@@ -129,7 +130,6 @@ async def ws_handler(request):
                             "is_admin": bool(is_admin_flag)
                         }))
 
-                # --- ЛОГИКА КАНАЛОВ ---
                 elif action == "create_channel" and current_user:
                     name = data.get("name", "").strip()
                     tag = data.get("tag", "").strip().lower().replace("@", "")
@@ -146,12 +146,15 @@ async def ws_handler(request):
                             await ws.send_str(json.dumps({"action": "toast", "msg": "Тег @ уже занят!"}))
                             continue
 
+                        cursor = await db.execute("SELECT is_admin FROM users WHERE username = ?", (current_user,))
+                        u_adm = await cursor.fetchone()
+                        chan_verified = 1 if (u_adm and u_adm[0] == 1) else 0
+
                         cursor = await db.execute(
-                            "INSERT INTO channels (name, tag, description, avatar, owner) VALUES (?, ?, ?, ?, ?)",
-                            (name, tag, desc, avatar, current_user)
+                            "INSERT INTO channels (name, tag, description, avatar, owner, is_verified) VALUES (?, ?, ?, ?, ?, ?)",
+                            (name, tag, desc, avatar, current_user, chan_verified)
                         )
                         ch_id = cursor.lastrowid
-                        # Создатель автоматически подписывается
                         await db.execute("INSERT INTO channel_subscribers (channel_id, username) VALUES (?, ?)", (ch_id, current_user))
                         await db.commit()
 
@@ -160,7 +163,7 @@ async def ws_handler(request):
                 elif action == "get_channels" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
-                            SELECT c.id, c.name, c.tag, c.description, c.avatar, c.owner,
+                            SELECT c.id, c.name, c.tag, c.description, c.avatar, c.owner, c.is_verified,
                             (SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = c.id) as subs_count,
                             EXISTS(SELECT 1 FROM channel_subscribers WHERE channel_id = c.id AND username = ?) as is_sub
                             FROM channels c
@@ -168,7 +171,8 @@ async def ws_handler(request):
                         rows = await cursor.fetchall()
                         ch_list = [{
                             "id": r[0], "name": r[1], "tag": r[2], "desc": r[3],
-                            "avatar": r[4], "owner": r[5], "subs": r[6], "is_sub": bool(r[7])
+                            "avatar": r[4], "owner": r[5], "verified": bool(r[6]),
+                            "subs": r[7], "is_sub": bool(r[8])
                         } for r in rows]
                     await ws.send_str(json.dumps({"action": "channels_list", "items": ch_list}))
 
@@ -217,7 +221,6 @@ async def ws_handler(request):
                         cursor = await db.execute("SELECT strftime('%H:%M', timestamp) FROM channel_posts WHERE id = ?", (p_id,))
                         p_time = (await cursor.fetchone())[0]
 
-                        # Список всех подписчиков для рассылки поста
                         cursor = await db.execute("SELECT username FROM channel_subscribers WHERE channel_id = ?", (ch_id,))
                         subscribers = [r[0] for r in await cursor.fetchall()]
 
@@ -226,7 +229,6 @@ async def ws_handler(request):
                         if sub in online_users:
                             await online_users[sub].send_str(post_payload)
 
-                # --- ЛИЧНЫЕ ДИАЛОГИ (КАК И БЫЛО) ---
                 elif action == "get_chats" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
