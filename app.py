@@ -5,23 +5,17 @@ import secrets
 import aiosqlite
 from aiohttp import web
 
-# Имя файла локальной базы данных
 DB_NAME = "tg_database.db"
-
-# Словарь активных WebSocket-подключений: {username: ws}
 online_users = {}
 
 def hash_password(password: str, salt: str = None) -> tuple[str, str]:
-    """Хэширование пароля алгоритмом SHA-256 с солью."""
     if not salt:
         salt = secrets.token_hex(16)
     hashed = hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
     return hashed, salt
 
 async def init_db():
-    """Инициализация таблиц базы данных SQLite."""
     async with aiosqlite.connect(DB_NAME) as db:
-        # Таблица зарегистрированных пользователей (без поля email)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,7 +27,6 @@ async def init_db():
                 session_token TEXT UNIQUE
             )
         """)
-        # Таблица личных сообщений
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +37,6 @@ async def init_db():
                 is_read INTEGER DEFAULT 0
             )
         """)
-        # Таблица каналов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +48,6 @@ async def init_db():
                 is_verified INTEGER DEFAULT 0
             )
         """)
-        # Таблица подписчиков каналов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_subscribers (
                 channel_id INTEGER,
@@ -64,7 +55,6 @@ async def init_db():
                 PRIMARY KEY (channel_id, username)
             )
         """)
-        # Таблица публикаций каналов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,13 +67,11 @@ async def init_db():
         await db.commit()
 
 async def index_handler(request):
-    """Отдача главного HTML-интерфейса."""
     if os.path.exists('static/index.html'):
         return web.FileResponse('static/index.html')
     return web.FileResponse('index.html')
 
 async def ws_handler(request):
-    """Обработчик интерактивных WebSocket-соединений."""
     ws = web.WebSocketResponse(max_msg_size=10*1024*1024)
     await ws.prepare(request)
     current_user = None
@@ -94,7 +82,6 @@ async def ws_handler(request):
                 data = json.loads(msg.data)
                 action = data.get("action")
 
-                # Проверка ранее сохранённого токена сессии
                 if action == "auth_by_token":
                     token = data.get("token", "").strip()
                     if not token:
@@ -120,7 +107,6 @@ async def ws_handler(request):
                         else:
                             await ws.send_str(json.dumps({"action": "require_login"}))
 
-                # Авторизация по логину и паролю
                 elif action == "login":
                     username = data.get("identifier", "").strip().lower()
                     password = data.get("password", "")
@@ -161,7 +147,6 @@ async def ws_handler(request):
                         "token": session_token
                     }))
 
-                # Прямая регистрация без кодов подтверждения
                 elif action == "register":
                     username = data.get("username", "").strip().lower()
                     password = data.get("password", "")
@@ -180,7 +165,6 @@ async def ws_handler(request):
                             await ws.send_str(json.dumps({"action": "auth_error", "msg": "Этот никнейм уже занят!"}))
                             continue
 
-                        # Первый зарегистрированный аккаунт автоматически становится Создателем/Админом
                         cursor = await db.execute("SELECT COUNT(*) FROM users")
                         is_first = (await cursor.fetchone())[0] == 0
                         is_adm = 1 if is_first else 0
@@ -205,7 +189,43 @@ async def ws_handler(request):
                         "token": session_token
                     }))
 
-                # Создание нового канала
+                elif action == "search" and current_user:
+                    q = data.get("query", "").strip().lower().replace("@", "")
+                    if not q:
+                        continue
+
+                    search_pattern = f"%{q}%"
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cursor = await db.execute("""
+                            SELECT username, is_verified 
+                            FROM users 
+                            WHERE username LIKE ? AND username != ?
+                            LIMIT 15
+                        """, (search_pattern, current_user))
+                        u_rows = await cursor.fetchall()
+                        found_users = [{"username": r[0], "verified": bool(r[1])} for r in u_rows]
+
+                        cursor = await db.execute("""
+                            SELECT c.id, c.name, c.tag, c.description, c.avatar, c.owner, c.is_verified,
+                            (SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = c.id) as subs_count,
+                            EXISTS(SELECT 1 FROM channel_subscribers WHERE channel_id = c.id AND username = ?) as is_sub
+                            FROM channels c
+                            WHERE c.tag LIKE ? OR c.name LIKE ?
+                            LIMIT 15
+                        """, (current_user, search_pattern, search_pattern))
+                        c_rows = await cursor.fetchall()
+                        found_channels = [{
+                            "id": r[0], "name": r[1], "tag": r[2], "desc": r[3],
+                            "avatar": r[4], "owner": r[5], "verified": bool(r[6]),
+                            "subs": r[7], "is_sub": bool(r[8])
+                        } for r in c_rows]
+
+                    await ws.send_str(json.dumps({
+                        "action": "search_results",
+                        "users": found_users,
+                        "channels": found_channels
+                    }))
+
                 elif action == "create_channel" and current_user:
                     name = data.get("name", "").strip()
                     tag = data.get("tag", "").strip().lower().replace("@", "")
@@ -236,7 +256,6 @@ async def ws_handler(request):
 
                     await ws.send_str(json.dumps({"action": "channel_created", "id": ch_id, "tag": tag}))
 
-                # Получение списка каналов
                 elif action == "get_channels" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
@@ -253,7 +272,6 @@ async def ws_handler(request):
                         } for r in rows]
                     await ws.send_str(json.dumps({"action": "channels_list", "items": ch_list}))
 
-                # Подписка / отписка от канала
                 elif action == "subscribe_channel" and current_user:
                     ch_id = data.get("channel_id")
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -270,7 +288,6 @@ async def ws_handler(request):
 
                     await ws.send_str(json.dumps({"action": "sub_status", "channel_id": ch_id, "is_sub": status, "count": count}))
 
-                # Получение публикаций канала
                 elif action == "get_channel_posts" and current_user:
                     ch_id = data.get("channel_id")
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -282,7 +299,6 @@ async def ws_handler(request):
                         posts = [{"id": r[0], "sender": r[1], "text": r[2], "time": r[3]} for r in rows]
                     await ws.send_str(json.dumps({"action": "channel_history", "channel_id": ch_id, "items": posts}))
 
-                # Публикация нового поста в канале
                 elif action == "post_to_channel" and current_user:
                     ch_id = data.get("channel_id")
                     text = data.get("text", "").strip()
@@ -309,7 +325,6 @@ async def ws_handler(request):
                         if sub in online_users:
                             await online_users[sub].send_str(post_payload)
 
-                # Получение списка личных диалогов
                 elif action == "get_chats" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
@@ -325,7 +340,6 @@ async def ws_handler(request):
                                 chats.append({"username": p_row[0], "verified": bool(p_row[1])})
                     await ws.send_str(json.dumps({"action": "chat_list", "items": chats}))
 
-                # История переписки с собеседником
                 elif action == "get_history" and current_user:
                     target = data.get("with", "").strip().lower()
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -341,7 +355,6 @@ async def ws_handler(request):
 
                     await ws.send_str(json.dumps({"action": "history", "with": target, "items": history}))
 
-                # Отправка личного сообщения
                 elif action == "send_msg" and current_user:
                     target = data.get("to", "").strip().lower()
                     text = data.get("text", "").strip()
@@ -361,13 +374,11 @@ async def ws_handler(request):
                     await ws.send_str(out)
 
     finally:
-        # Удаление отключившегося пользователя из списка онлайн
         if current_user and current_user in online_users:
             del online_users[current_user]
     return ws
 
 async def make_app():
-    """Сборка приложения aiohttp."""
     await init_db()
     app = web.Application(client_max_size=10*1024*1024)
     app.router.add_get('/', index_handler)
