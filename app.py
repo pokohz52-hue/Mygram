@@ -2,9 +2,6 @@ import json
 import os
 import hashlib
 import secrets
-import smtplib
-import asyncio
-from email.message import EmailMessage
 import aiosqlite
 from aiohttp import web
 
@@ -14,12 +11,6 @@ DB_NAME = "tg_database.db"
 # Словарь активных WebSocket-подключений: {username: ws}
 online_users = {}
 
-# Параметры почтового сервера Gmail SMTP
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "lol52alo228@gmail.com")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "pkkozadhwncdqltr")
-
 def hash_password(password: str, salt: str = None) -> tuple[str, str]:
     """Хэширование пароля алгоритмом SHA-256 с солью."""
     if not salt:
@@ -27,54 +18,19 @@ def hash_password(password: str, salt: str = None) -> tuple[str, str]:
     hashed = hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
     return hashed, salt
 
-def send_smtp_code(to_email: str, code: str) -> bool:
-    """Отправка 6-значного пин-кода подтверждения на почту Gmail."""
-    try:
-        msg = EmailMessage()
-        msg["Subject"] = f"{code} — код подтверждения MyGram"
-        msg["From"] = SMTP_EMAIL
-        msg["To"] = to_email
-        msg.set_content(
-            f"Ваш проверочный код для входа в MyGram: {code}\n\n"
-            f"Никогда и никому не передавайте этот код."
-        )
-
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=10) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            server.login(SMTP_EMAIL, SMTP_PASSWORD)
-            server.send_message(msg)
-        return True
-    except Exception as error:
-        print(f"[Ошибка отправки почты SMTP]: {error}")
-        return False
-
 async def init_db():
     """Инициализация таблиц базы данных SQLite."""
     async with aiosqlite.connect(DB_NAME) as db:
-        # Таблица зарегистрированных пользователей
+        # Таблица зарегистрированных пользователей (без поля email)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
-                email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
                 is_verified INTEGER DEFAULT 0,
                 is_admin INTEGER DEFAULT 0,
                 session_token TEXT UNIQUE
-            )
-        """)
-        # Таблица временных заявок на регистрацию до ввода кода
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS pending_verifications (
-                email TEXT PRIMARY KEY,
-                username TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                password_salt TEXT NOT NULL,
-                code TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         # Таблица личных сообщений
@@ -122,7 +78,9 @@ async def init_db():
 
 async def index_handler(request):
     """Отдача главного HTML-интерфейса."""
-    return web.FileResponse('static/index.html')
+    if os.path.exists('static/index.html'):
+        return web.FileResponse('static/index.html')
+    return web.FileResponse('index.html')
 
 async def ws_handler(request):
     """Обработчик интерактивных WebSocket-соединений."""
@@ -162,20 +120,20 @@ async def ws_handler(request):
                         else:
                             await ws.send_str(json.dumps({"action": "require_login"}))
 
-                # Авторизация по логину/почте и паролю
+                # Авторизация по логину и паролю
                 elif action == "login":
-                    identifier = data.get("identifier", "").strip().lower()
+                    username = data.get("identifier", "").strip().lower()
                     password = data.get("password", "")
 
-                    if not identifier or not password:
+                    if not username or not password:
                         await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните все поля!"}))
                         continue
 
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
                             SELECT username, password_hash, password_salt, is_verified, is_admin 
-                            FROM users WHERE username = ? OR email = ?
-                        """, (identifier, identifier))
+                            FROM users WHERE username = ?
+                        """, (username,))
                         row = await cursor.fetchone()
 
                         if not row:
@@ -203,14 +161,13 @@ async def ws_handler(request):
                         "token": session_token
                     }))
 
-                # Заявка на регистрацию и генерация проверочного кода
-                elif action == "register_request":
+                # Прямая регистрация без кодов подтверждения
+                elif action == "register":
                     username = data.get("username", "").strip().lower()
-                    email = data.get("email", "").strip().lower()
                     password = data.get("password", "")
 
-                    if not username or not email or not password:
-                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните логин, email и пароль!"}))
+                    if not username or not password:
+                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните никнейм и пароль!"}))
                         continue
 
                     if len(password) < 6:
@@ -223,68 +180,26 @@ async def ws_handler(request):
                             await ws.send_str(json.dumps({"action": "auth_error", "msg": "Этот никнейм уже занят!"}))
                             continue
 
-                        cursor = await db.execute("SELECT id FROM users WHERE email = ?", (email,))
-                        if await cursor.fetchone():
-                            await ws.send_str(json.dumps({"action": "auth_error", "msg": "Email уже привязан к другому аккаунту!"}))
-                            continue
-
-                        p_hash, p_salt = hash_password(password)
-                        code = f"{secrets.randbelow(900000) + 100000}"
-
-                        await db.execute("""
-                            INSERT OR REPLACE INTO pending_verifications (email, username, password_hash, password_salt, code)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (email, username, p_hash, p_salt, code))
-                        await db.commit()
-
-                    # Отправка письма в фоновом потоке
-                    loop = asyncio.get_running_loop()
-                    ok = await loop.run_in_executor(None, send_smtp_code, email, code)
-                    if ok:
-                        await ws.send_str(json.dumps({"action": "code_sent", "email": email}))
-                    else:
-                        await ws.send_str(json.dumps({
-                            "action": "auth_error",
-                            "msg": "Ошибка отправки письма. Проверьте правильность почты или настройки почтового сервера."
-                        }))
-
-                # Проверка кода и создание профиля
-                elif action == "verify_code":
-                    email = data.get("email", "").strip().lower()
-                    code = data.get("code", "").strip()
-
-                    async with aiosqlite.connect(DB_NAME) as db:
-                        cursor = await db.execute(
-                            "SELECT username, password_hash, password_salt, code FROM pending_verifications WHERE email = ?",
-                            (email,)
-                        )
-                        row = await cursor.fetchone()
-
-                        if not row or row[3] != code:
-                            await ws.send_str(json.dumps({"action": "auth_error", "msg": "Неверный код из письма!"}))
-                            continue
-
-                        uname, p_hash, p_salt, _ = row
-                        
-                        # Первый зарегистрированный аккаунт автоматически становится Создателем
+                        # Первый зарегистрированный аккаунт автоматически становится Создателем/Админом
                         cursor = await db.execute("SELECT COUNT(*) FROM users")
                         is_first = (await cursor.fetchone())[0] == 0
                         is_adm = 1 if is_first else 0
                         is_ver = 1 if is_first else 0
                         session_token = secrets.token_hex(32)
 
+                        p_hash, p_salt = hash_password(password)
+
                         await db.execute("""
-                            INSERT INTO users (username, email, password_hash, password_salt, is_verified, is_admin, session_token)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (uname, email, p_hash, p_salt, is_ver, is_adm, session_token))
-                        await db.execute("DELETE FROM pending_verifications WHERE email = ?", (email,))
+                            INSERT INTO users (username, password_hash, password_salt, is_verified, is_admin, session_token)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (username, p_hash, p_salt, is_ver, is_adm, session_token))
                         await db.commit()
 
-                    current_user = uname
+                    current_user = username
                     online_users[current_user] = ws
                     await ws.send_str(json.dumps({
                         "action": "auth_success",
-                        "username": uname,
+                        "username": username,
                         "verified": bool(is_ver),
                         "is_admin": bool(is_adm),
                         "token": session_token
@@ -307,7 +222,6 @@ async def ws_handler(request):
                             await ws.send_str(json.dumps({"action": "toast", "msg": "Тег @ уже кем-то занят!"}))
                             continue
 
-                        # Если канал создает админ, сразу выдается галочка верификации
                         cursor = await db.execute("SELECT is_admin FROM users WHERE username = ?", (current_user,))
                         u_adm = await cursor.fetchone()
                         chan_verified = 1 if (u_adm and u_adm[0] == 1) else 0
