@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MyGram Max</title>
+    <title>MyGram Ultra</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -27,11 +27,16 @@
             --blur: blur(30px);
         }
 
+        /* Темы оформления */
+        body.theme-cyan { --primary: #06b6d4; --primary-glow: rgba(6, 182, 212, 0.4); --msg-out: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%); }
+        body.theme-emerald { --primary: #10b981; --primary-glow: rgba(16, 185, 129, 0.4); --msg-out: linear-gradient(135deg, #059669 0%, #10b981 100%); }
+        body.theme-orange { --primary: #f97316; --primary-glow: rgba(249, 115, 22, 0.4); --msg-out: linear-gradient(135deg, #ea580c 0%, #f97316 100%); }
+
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background: var(--bg-body); height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--text-main); overflow: hidden; }
 
         .ambient-sphere { position: absolute; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0; }
-        .sphere-1 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(99,102,241,0.25) 0%, transparent 70%); top: -150px; left: -100px; }
+        .sphere-1 { width: 500px; height: 500px; background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%); top: -150px; left: -100px; }
         .sphere-2 { width: 450px; height: 450px; background: radial-gradient(circle, rgba(6,182,212,0.2) 0%, transparent 70%); bottom: -120px; right: -80px; }
 
         .app-window {
@@ -61,13 +66,12 @@
         .profile-pill:hover { background: var(--glass-card); }
         
         .avatar-wrap { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
-        .avatar { width: 100%; height: 100%; border-radius: 15px; background: linear-gradient(135deg, #4f46e5, #06b6d4); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: #fff; box-shadow: 0 4px 14px var(--primary-glow); }
+        .avatar { width: 100%; height: 100%; border-radius: 15px; background: linear-gradient(135deg, var(--primary), #06b6d4); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: #fff; box-shadow: 0 4px 14px var(--primary-glow); }
         .status-dot { position: absolute; bottom: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #0b101b; background: var(--text-dim); }
         .status-dot.online { background: var(--accent-emerald); box-shadow: 0 0 10px rgba(16,185,129,0.8); }
 
         .brand-title { font-weight: 800; font-size: 1.25rem; background: linear-gradient(90deg, #818cf8, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-        /* ЛЕНТА ИСТОРИЙ (STORIES) */
         .stories-bar { display: flex; gap: 12px; padding: 12px 18px 6px; overflow-x: auto; border-bottom: 1px solid var(--glass-border); }
         .stories-bar::-webkit-scrollbar { display: none; }
         .story-node { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; flex-shrink: 0; }
@@ -118,7 +122,6 @@
         .typing-pulse { color: var(--accent-cyan); font-weight: 600; display: none; animation: blink 1.2s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-        /* ЗАКРЕПЛЕННОЕ СООБЩЕНИЕ */
         .pinned-bar {
             display: none; padding: 8px 24px; background: rgba(99,102,241,0.12); border-bottom: 1px solid var(--glass-border);
             align-items: center; justify-content: space-between; cursor: pointer; backdrop-filter: blur(8px);
@@ -126,7 +129,6 @@
         .pinned-title { font-size: 0.75rem; color: var(--accent-cyan); font-weight: 700; }
         .pinned-text { font-size: 0.82rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%; }
 
-        /* ЦИТИРОВАНИЕ / ОТВЕТ */
         .reply-preview-bar {
             display: none; padding: 10px 24px; background: rgba(15, 23, 42, 0.8); border-top: 1px solid var(--glass-border);
             align-items: center; justify-content: space-between;
@@ -139,10 +141,11 @@
         .msg-container::-webkit-scrollbar { width: 5px; }
         .msg-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 
-        /* СООБЩЕНИЯ */
         .msg-wrap { display: flex; flex-direction: column; max-width: 72%; position: relative; }
         .msg-wrap.out { align-self: flex-end; align-items: flex-end; }
         .msg-wrap.in { align-self: flex-start; align-items: flex-start; }
+
+        .forward-tag { font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
 
         .msg-quote {
             background: rgba(0,0,0,0.25); border-left: 3px solid var(--accent-cyan); padding: 4px 8px;
@@ -157,7 +160,14 @@
         .msg-wrap.out .msg-bubble { background: var(--msg-out); color: #fff; border-bottom-right-radius: 4px; }
         .msg-wrap.in .msg-bubble { background: var(--msg-in); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--glass-border); }
 
-        .msg-img { max-width: 100%; max-height: 320px; border-radius: 14px; margin-top: 6px; cursor: pointer; }
+        /* СПОЙЛЕР */
+        .spoiler-wrap { position: relative; display: inline-block; overflow: hidden; border-radius: 14px; cursor: pointer; margin-top: 6px; }
+        .spoiler-blur { filter: blur(25px); transition: filter 0.3s ease; }
+        .spoiler-wrap.revealed .spoiler-blur { filter: none; }
+        .spoiler-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); font-size: 0.8rem; font-weight: 800; color: #fff; pointer-events: none; transition: opacity 0.2s; }
+        .spoiler-wrap.revealed .spoiler-badge { opacity: 0; }
+
+        .msg-img { max-width: 100%; max-height: 320px; border-radius: 14px; display: block; }
         .audio-player-box { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
         .btn-play-voice { width: 36px; height: 36px; border-radius: 50%; border: none; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
@@ -181,19 +191,17 @@
         .quick-react-item { cursor: pointer; font-size: 1.1rem; transition: transform 0.15s; }
         .quick-react-item:hover { transform: scale(1.3); }
 
-        /* ВВОД СООБЩЕНИЙ */
         .chat-input-bar { padding: 14px 20px; border-top: 1px solid var(--glass-border); display: flex; align-items: center; gap: 10px; background: rgba(13, 19, 33, 0.6); backdrop-filter: blur(10px); }
         .btn-icon { width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--glass-card); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
         .btn-icon:hover { background: rgba(255,255,255,0.12); }
         .btn-icon.recording { background: #ef4444; border-color: #ef4444; animation: blink 1s infinite; }
 
         .btn-send {
-            width: 48px; height: 48px; border-radius: 18px; border: none; background: linear-gradient(135deg, #4f46e5, #6366f1);
+            width: 48px; height: 48px; border-radius: 18px; border: none; background: linear-gradient(135deg, var(--primary), #6366f1);
             color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer;
             box-shadow: 0 4px 18px var(--primary-glow); transition: 0.2s; flex-shrink: 0;
         }
 
-        /* МОДАЛКИ */
         .glass-modal { position: fixed; inset: 0; background: rgba(4, 7, 15, 0.85); backdrop-filter: blur(25px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
         .glass-modal.active { display: flex; }
         .modal-card {
@@ -202,7 +210,7 @@
             display: flex; flex-direction: column; gap: 16px;
         }
         .btn-action {
-            width: 100%; padding: 14px; border-radius: 16px; border: none; background: linear-gradient(135deg, #4f46e5, #6366f1);
+            width: 100%; padding: 14px; border-radius: 16px; border: none; background: linear-gradient(135deg, var(--primary), #6366f1);
             color: #fff; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px var(--primary-glow);
         }
 
@@ -217,7 +225,7 @@
 <div class="app-window">
     <div class="sidebar" id="sidebar">
         <div class="side-header">
-            <div class="profile-pill" onclick="openStatusModal()">
+            <div class="profile-pill" onclick="openProfileModal()">
                 <div class="avatar-wrap">
                     <div class="avatar" id="myAvatar">U</div>
                     <div class="status-dot online"></div>
@@ -228,10 +236,13 @@
                         <span id="myStatusEmoji" style="font-size:0.9rem;">⚡</span>
                         <span id="myBadge"></span>
                     </div>
-                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Мой профиль</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Настройки и статус</div>
                 </div>
             </div>
-            <button class="btn-send" style="width:38px; height:38px; border-radius:12px; font-size:0.9rem;" onclick="logout()">🚪</button>
+            <div style="display:flex; gap:6px;">
+                <button class="btn-icon" style="width:38px; height:38px; border-radius:12px; font-size:1rem;" onclick="openSavedMessages()">🔖</button>
+                <button class="btn-send" style="width:38px; height:38px; border-radius:12px; font-size:0.9rem;" onclick="logout()">🚪</button>
+            </div>
         </div>
 
         <!-- ЛЕНТА STORIES -->
@@ -243,7 +254,7 @@
         </div>
 
         <div class="search-box">
-            <input type="text" id="searchBar" class="input-glass" placeholder="🔍 Поиск людей (@логин) и каналов..." oninput="handleSearch(this.value)">
+            <input type="text" id="searchBar" class="input-glass" placeholder="🔍 Поиск людей, каналов или @ai..." oninput="handleSearch(this.value)">
         </div>
 
         <div class="tabs">
@@ -277,7 +288,6 @@
             </div>
         </div>
 
-        <!-- ЗАКРЕПЛЕННОЕ СООБЩЕНИЕ -->
         <div class="pinned-bar" id="pinnedBar" onclick="scrollToPinned()">
             <div style="border-left: 3px solid var(--accent-cyan); padding-left: 10px;">
                 <div class="pinned-title">📌 Закрепленное сообщение</div>
@@ -287,11 +297,10 @@
 
         <div class="msg-container" id="msgBox">
             <div style="margin: auto; color: var(--text-muted); text-align: center; font-size: 0.95rem;">
-                💫 Выберите диалог или канал
+                💫 Выберите диалог, канал или откройте Избранное
             </div>
         </div>
 
-        <!-- ПЛАШКА ОТВЕТА (REPLY) -->
         <div class="reply-preview-bar" id="replyBar">
             <div class="reply-line">
                 <div class="reply-name" id="replyName">Ответ</div>
@@ -303,8 +312,9 @@
         <div class="chat-input-bar" id="inputBar" style="display: none;">
             <input type="file" id="filePicker" accept="image/*" style="display:none;" onchange="handleFileUpload(event)">
             <button class="btn-icon" onclick="document.getElementById('filePicker').click()">📎</button>
+            <button class="btn-icon" id="spoilerToggleBtn" onclick="toggleSpoilerState()" title="Спойлер">🙈</button>
             <button class="btn-icon" id="voiceBtn" onclick="toggleVoiceRecording()">🎤</button>
-            <input type="text" id="msgInput" class="input-glass" style="border-radius:20px;" placeholder="Написать сообщение..." oninput="reportTyping()" onkeydown="if(event.key==='Enter') sendAction()">
+            <input type="text" id="msgInput" class="input-glass" style="border-radius:20px;" placeholder="Сообщение или @ai вопрос..." oninput="reportTyping()" onkeydown="if(event.key==='Enter') sendAction()">
             <button class="btn-send" onclick="sendAction()">➤</button>
         </div>
 
@@ -337,23 +347,47 @@
     </div>
 </div>
 
-<!-- Модалка смены статуса (Emoji Status) -->
-<div class="glass-modal" id="modalStatus">
+<!-- Модалка профиля и выбора темы -->
+<div class="glass-modal" id="modalProfile">
     <div class="modal-card">
-        <h3>Выберите статус ⚡</h3>
-        <div style="display:flex; justify-content:space-around; font-size:1.8rem; padding:10px 0;">
-            <span style="cursor:pointer;" onclick="setStatus('⚡')">⚡</span>
-            <span style="cursor:pointer;" onclick="setStatus('👑')">👑</span>
-            <span style="cursor:pointer;" onclick="setStatus('💎')">💎</span>
-            <span style="cursor:pointer;" onclick="setStatus('🚀')">🚀</span>
-            <span style="cursor:pointer;" onclick="setStatus('🔥')">🔥</span>
-            <span style="cursor:pointer;" onclick="setStatus('')">❌</span>
+        <h3>Настройки профиля ⚙️</h3>
+        <div>
+            <label style="font-size:0.8rem; color:var(--text-muted);">Статус эмодзи:</label>
+            <div style="display:flex; justify-content:space-around; font-size:1.6rem; padding:8px 0;">
+                <span style="cursor:pointer;" onclick="setStatus('⚡')">⚡</span>
+                <span style="cursor:pointer;" onclick="setStatus('👑')">👑</span>
+                <span style="cursor:pointer;" onclick="setStatus('💎')">💎</span>
+                <span style="cursor:pointer;" onclick="setStatus('🚀')">🚀</span>
+                <span style="cursor:pointer;" onclick="setStatus('🔥')">🔥</span>
+                <span style="cursor:pointer;" onclick="setStatus('')">❌</span>
+            </div>
         </div>
-        <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalStatus')">Закрыть</button>
+        <div>
+            <label style="font-size:0.8rem; color:var(--text-muted);">Цветовая тема:</label>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="btn-action" style="background:#6366f1; padding:8px;" onclick="setTheme('')">Indigo</button>
+                <button class="btn-action" style="background:#06b6d4; padding:8px;" onclick="setTheme('theme-cyan')">Cyan</button>
+                <button class="btn-action" style="background:#10b981; padding:8px;" onclick="setTheme('theme-emerald')">Emerald</button>
+                <button class="btn-action" style="background:#f97316; padding:8px;" onclick="setTheme('theme-orange')">Orange</button>
+            </div>
+        </div>
+        <button class="btn-action" style="background:var(--glass-card); margin-top:8px;" onclick="closeModal('modalProfile')">Закрыть</button>
     </div>
 </div>
 
-<!-- Модалка просмотра / добавления истории -->
+<!-- Модалка пересылки сообщения -->
+<div class="glass-modal" id="modalForward">
+    <div class="modal-card">
+        <h3>Переслать сообщение ↗️</h3>
+        <input type="text" id="forwardRecipient" class="input-glass" placeholder="Кому (@логин получателя)...">
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalForward')">Отмена</button>
+            <button class="btn-action" onclick="submitForward()">Отправить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка просмотра истории -->
 <div class="glass-modal" id="modalStoryView">
     <div class="modal-card" style="max-width:340px; padding:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -383,7 +417,7 @@
     <div class="modal-card">
         <h3>Создать канал 📢</h3>
         <input type="text" id="newChanName" class="input-glass" placeholder="Название канала">
-        <input type="text" id="newChanTag" class="input-glass" placeholder="Тег (например: blog)">
+        <input type="text" id="newChanTag" class="input-glass" placeholder="Тег (например: dev)">
         <textarea id="newChanDesc" class="input-glass" rows="3" placeholder="Описание канала..."></textarea>
         <div style="display:flex; gap:10px;">
             <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalChannel')">Отмена</button>
@@ -401,21 +435,23 @@
     let activeChat = null;
     let replyTarget = null;
     let currentPinnedId = null;
+    let forwardTargetMsg = null;
+    let isSpoilerActive = false;
 
-    // Голосовые сообщения
+    // Голосовые
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
 
-    // Звук сообщения (Web Audio API без внешних файлов)
+    // Звук сообщения
     function playNotificationSound() {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.type = "sine";
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
             gain.gain.setValueAtTime(0.15, ctx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
             osc.connect(gain);
@@ -489,7 +525,7 @@
                 renderChannelPosts(data.items);
             }
             else if (data.action === "new_msg") {
-                if (activeChat && activeChat.type === 'chat' && (activeChat.target === data.sender || data.sender === me)) {
+                if (activeChat && activeChat.type === 'chat' && (activeChat.target === data.sender || data.sender === me || (activeChat.target === me && data.sender === me))) {
                     appendMsg(data);
                 } else {
                     playNotificationSound();
@@ -571,10 +607,20 @@
         location.reload();
     }
 
-    function openStatusModal() { document.getElementById("modalStatus").classList.add("active"); }
+    function openProfileModal() { document.getElementById("modalProfile").classList.add("active"); }
     function setStatus(st) {
         ws.send(JSON.stringify({ action: "update_status", status: st }));
-        closeModal("modalStatus");
+        closeModal("modalProfile");
+    }
+    function setTheme(th) {
+        document.body.className = th;
+        localStorage.setItem("mg_theme", th);
+    }
+
+    function openSavedMessages() {
+        openChat(me);
+        document.getElementById("chatTitle").innerText = "🔖 Избранное";
+        document.getElementById("chatStatusText").innerText = "ваши сохраненные сообщения";
     }
 
     // Истории
@@ -620,7 +666,7 @@
         document.getElementById("modalStoryView").classList.add("active");
     }
 
-    // Переключение вкладок и поиск
+    // Вкладки
     function switchTab(tab) {
         currentTab = tab;
         document.getElementById("tabChatsBtn").classList.toggle("active", tab === 'chats');
@@ -651,19 +697,20 @@
             const vBadge = c.verified ? '<span class="badge-verified">✓</span>' : '';
             const unread = c.unread > 0 ? `<span class="unread-badge">${c.unread}</span>` : '';
             const st = c.status ? `<span>${c.status}</span>` : '';
+            const isSaved = c.username === me;
             box.innerHTML += `
                 <div class="item-card ${activeChat && activeChat.target === c.username ? 'active' : ''}" onclick="openChat('${c.username}')">
                     <div class="avatar-wrap">
-                        <div class="avatar">${c.username[0].toUpperCase()}</div>
+                        <div class="avatar">${isSaved ? '🔖' : c.username[0].toUpperCase()}</div>
                         <div class="status-dot ${c.online ? 'online' : ''}"></div>
                     </div>
                     <div class="item-info">
                         <div class="item-top">
-                            <span class="item-name">${c.username} ${st} ${vBadge}</span>
+                            <span class="item-name">${isSaved ? 'Избранное' : c.username} ${st} ${vBadge}</span>
                             <span class="item-time">${c.last_time || ''}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="item-desc">${c.last_text || c.bio || 'Нажмите для диалога'}</span>
+                            <span class="item-desc">${c.last_text || c.bio || 'Диалог'}</span>
                             ${unread}
                         </div>
                     </div>
@@ -720,8 +767,8 @@
         activeChat = { type: 'chat', target: username };
         document.getElementById("sidebar").classList.add("hidden");
         document.getElementById("chatArea").classList.add("active");
-        document.getElementById("chatTitle").innerText = username;
-        document.getElementById("chatAvatar").innerText = username[0].toUpperCase();
+        document.getElementById("chatTitle").innerText = username === me ? "🔖 Избранное" : username;
+        document.getElementById("chatAvatar").innerText = username === me ? "🔖" : username[0].toUpperCase();
         document.getElementById("inputBar").style.display = "flex";
         document.getElementById("subscribeBar").style.display = "none";
         document.getElementById("msgBox").innerHTML = "";
@@ -789,7 +836,6 @@
         setTimeout(() => { ind.style.display = "none"; status.style.display = "inline"; }, 2000);
     }
 
-    // Закрепы
     function setPinnedBar(id, text) {
         currentPinnedId = id;
         document.getElementById("pinnedBar").style.display = "flex";
@@ -806,7 +852,6 @@
         ws.send(JSON.stringify({ action: "pin_msg", id, with: activeChat.target }));
     }
 
-    // Ответы
     function setReply(id, name, text) {
         replyTarget = { id, name, text };
         document.getElementById("replyBar").style.display = "flex";
@@ -819,7 +864,29 @@
         document.getElementById("replyBar").style.display = "none";
     }
 
-    // Отображение сообщений
+    function toggleSpoilerState() {
+        isSpoilerActive = !isSpoilerActive;
+        const btn = document.getElementById("spoilerToggleBtn");
+        btn.style.borderColor = isSpoilerActive ? "var(--primary)" : "var(--glass-border)";
+        btn.style.background = isSpoilerActive ? "var(--primary-glow)" : "var(--glass-card)";
+        showToast(isSpoilerActive ? "Режим спойлера включен" : "Спойлер выключен");
+    }
+
+    function openForwardModal(msg) {
+        forwardTargetMsg = msg;
+        document.getElementById("modalForward").classList.add("active");
+    }
+    function submitForward() {
+        const to = document.getElementById("forwardRecipient").value.trim().toLowerCase().replace("@", "");
+        if (!to || !forwardTargetMsg) return showToast("Укажите получателя!");
+        ws.send(JSON.stringify({
+            action: "send_msg", to: to, text: forwardTargetMsg.text, media_type: forwardTargetMsg.media_type,
+            media_data: forwardTargetMsg.media_data, forward_from: forwardTargetMsg.sender
+        }));
+        closeModal("modalForward");
+        showToast("Сообщение переслано!");
+    }
+
     function renderHistory(items) {
         const box = document.getElementById("msgBox");
         box.innerHTML = "";
@@ -840,9 +907,19 @@
         wrap.className = `msg-wrap ${isMe ? 'out' : 'in'}`;
         wrap.id = `msg-${m.id}`;
 
+        let fwdHtml = m.forward_from ? `<div class="forward-tag">↗️ Переслано от @${m.forward_from}</div>` : '';
+
         let mediaContent = "";
         if (m.media_type === 'image' && m.media_data) {
-            mediaContent = `<img src="${m.media_data}" class="msg-img">`;
+            if (m.is_spoiler) {
+                mediaContent = `
+                    <div class="spoiler-wrap" onclick="this.classList.toggle('revealed')">
+                        <img src="${m.media_data}" class="msg-img spoiler-blur">
+                        <div class="spoiler-badge">СПОЙЛЕР 🙈</div>
+                    </div>`;
+            } else {
+                mediaContent = `<img src="${m.media_data}" class="msg-img">`;
+            }
         } else if (m.media_type === 'audio' && m.media_data) {
             mediaContent = `
                 <div class="audio-player-box">
@@ -866,10 +943,12 @@
                 <span class="quick-react-item" onclick="sendReaction('msg', ${m.id}, '❤️')">❤️</span>
                 <span class="quick-react-item" onclick="sendReaction('msg', ${m.id}, '👍')">👍</span>
                 <span class="quick-react-item" onclick="setReply(${m.id}, '${m.sender}', '${escapeJs(m.text)}')">↩️</span>
+                <span class="quick-react-item" onclick='openForwardModal(${JSON.stringify(m)})'>↗️</span>
                 <span class="quick-react-item" onclick="pinMessage(${m.id})">📌</span>
                 ${isMe ? `<span class="quick-react-item" onclick="deleteMsg(${m.id})">🗑️</span>` : ''}
             </div>
             <div class="msg-bubble">
+                ${fwdHtml}
                 ${quoteContent}
                 ${mediaContent}
                 ${m.text ? `<div>${escapeHtml(m.text)}</div>` : ''}
@@ -891,7 +970,18 @@
         wrap.style.maxWidth = "680px";
         wrap.id = `post-${p.id}`;
 
-        let mediaHtml = p.media_type === 'image' && p.media_data ? `<img src="${p.media_data}" class="msg-img">` : '';
+        let mediaHtml = "";
+        if (p.media_type === 'image' && p.media_data) {
+            if (p.is_spoiler) {
+                mediaHtml = `
+                    <div class="spoiler-wrap" onclick="this.classList.toggle('revealed')">
+                        <img src="${p.media_data}" class="msg-img spoiler-blur">
+                        <div class="spoiler-badge">СПОЙЛЕР 🙈</div>
+                    </div>`;
+            } else {
+                mediaHtml = `<img src="${p.media_data}" class="msg-img">`;
+            }
+        }
 
         wrap.innerHTML = `
             <div class="msg-bubble" style="background:var(--glass-card); border:1px solid var(--glass-border); border-radius:22px; padding:18px;">
@@ -919,7 +1009,6 @@
         snd.play();
     }
 
-    // Запись голосовых (MediaRecorder)
     async function toggleVoiceRecording() {
         const btn = document.getElementById("voiceBtn");
         if (!isRecording) {
@@ -939,7 +1028,7 @@
                 mediaRecorder.start();
                 isRecording = true;
                 btn.classList.add("recording");
-                showToast("Идет запись голоса...");
+                showToast("Идет запись...");
             } catch(e) {
                 showToast("Нет доступа к микрофону");
             }
@@ -950,7 +1039,6 @@
         }
     }
 
-    // Отправка картинок
     function handleFileUpload(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -965,11 +1053,18 @@
         if (!activeChat) return;
         const replyId = replyTarget ? replyTarget.id : 0;
         if (activeChat.type === 'chat') {
-            ws.send(JSON.stringify({ action: "send_msg", to: activeChat.target, text: "", media_type: type, media_data: dataUrl, reply_to_id: replyId }));
+            ws.send(JSON.stringify({
+                action: "send_msg", to: activeChat.target, text: "", media_type: type,
+                media_data: dataUrl, is_spoiler: isSpoilerActive, reply_to_id: replyId
+            }));
         } else if (activeChat.type === 'channel') {
-            ws.send(JSON.stringify({ action: "post_to_channel", channel_id: activeChat.id, text: "", media_type: type, media_data: dataUrl }));
+            ws.send(JSON.stringify({
+                action: "post_to_channel", channel_id: activeChat.id, text: "", media_type: type,
+                media_data: dataUrl, is_spoiler: isSpoilerActive
+            }));
         }
         cancelReply();
+        if (isSpoilerActive) toggleSpoilerState();
     }
 
     function sendAction() {
@@ -1033,7 +1128,12 @@
 
     function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
     function escapeJs(t) { return (t || '').replace(/'/g, "\\'").replace(/"/g, '\\"'); }
-    window.onload = initWS;
+
+    window.onload = () => {
+        const savedTheme = localStorage.getItem("mg_theme");
+        if (savedTheme) document.body.className = savedTheme;
+        initWS();
+    };
 </script>
 </body>
 </html>
