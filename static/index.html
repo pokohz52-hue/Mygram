@@ -3,55 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MyGram Ultra</title>
+    <title>MyGram Cyber-OS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-body: #080c14;
-            --sidebar-bg: rgba(13, 19, 33, 0.78);
-            --chat-bg: rgba(9, 13, 22, 0.45);
+            --bg-body: #05070e;
+            --sidebar-bg: rgba(10, 14, 26, 0.82);
+            --chat-bg: rgba(7, 10, 19, 0.5);
             --glass-border: rgba(255, 255, 255, 0.08);
-            --glass-card: rgba(255, 255, 255, 0.04);
+            --glass-card: rgba(255, 255, 255, 0.035);
             --glass-hover: rgba(255, 255, 255, 0.08);
             --primary: #6366f1;
-            --primary-glow: rgba(99, 102, 241, 0.4);
-            --accent-cyan: #06b6d4;
+            --primary-glow: rgba(99, 102, 241, 0.5);
+            --accent-cyan: #00f2fe;
             --accent-emerald: #10b981;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --text-dim: #64748b;
             --msg-out: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-            --msg-in: rgba(255, 255, 255, 0.06);
+            --msg-in: rgba(255, 255, 255, 0.05);
             --radius-bubble: 20px;
-            --blur: blur(30px);
+            --blur: blur(35px);
         }
 
-        /* Темы оформления */
-        body.theme-cyan { --primary: #06b6d4; --primary-glow: rgba(6, 182, 212, 0.4); --msg-out: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%); }
-        body.theme-emerald { --primary: #10b981; --primary-glow: rgba(16, 185, 129, 0.4); --msg-out: linear-gradient(135deg, #059669 0%, #10b981 100%); }
-        body.theme-orange { --primary: #f97316; --primary-glow: rgba(249, 115, 22, 0.4); --msg-out: linear-gradient(135deg, #ea580c 0%, #f97316 100%); }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background: var(--bg-body); height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--text-main); overflow: hidden; }
 
-        .ambient-sphere { position: absolute; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0; }
-        .sphere-1 { width: 500px; height: 500px; background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%); top: -150px; left: -100px; }
-        .sphere-2 { width: 450px; height: 450px; background: radial-gradient(circle, rgba(6,182,212,0.2) 0%, transparent 70%); bottom: -120px; right: -80px; }
+        /* Neural Canvas Background */
+        #neuralCanvas { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.55; }
 
         .app-window {
             width: 100vw; height: 100vh; display: flex; position: relative;
-            background: rgba(13, 17, 28, 0.65); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+            background: rgba(10, 15, 29, 0.72); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
             border: 1px solid var(--glass-border); z-index: 1; overflow: hidden;
         }
 
         @media (min-width: 900px) {
-            .app-window { width: 95vw; height: 93vh; border-radius: 30px; box-shadow: 0 35px 90px rgba(0,0,0,0.9); }
+            .app-window { width: 96vw; height: 94vh; border-radius: 32px; box-shadow: 0 40px 100px rgba(0,0,0,0.95), 0 0 50px rgba(99,102,241,0.15); }
         }
 
         /* САЙДБАР */
         .sidebar {
-            width: 380px; border-right: 1px solid var(--glass-border); display: flex; flex-direction: column;
+            width: 390px; border-right: 1px solid var(--glass-border); display: flex; flex-direction: column;
             background: var(--sidebar-bg); z-index: 5; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -66,35 +60,40 @@
         .profile-pill:hover { background: var(--glass-card); }
         
         .avatar-wrap { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
-        .avatar { width: 100%; height: 100%; border-radius: 15px; background: linear-gradient(135deg, var(--primary), #06b6d4); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: #fff; box-shadow: 0 4px 14px var(--primary-glow); }
-        .status-dot { position: absolute; bottom: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #0b101b; background: var(--text-dim); }
-        .status-dot.online { background: var(--accent-emerald); box-shadow: 0 0 10px rgba(16,185,129,0.8); }
+        .avatar { width: 100%; height: 100%; border-radius: 15px; background: linear-gradient(135deg, var(--primary), var(--accent-cyan)); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; color: #fff; box-shadow: 0 4px 16px var(--primary-glow); }
+        .status-dot { position: absolute; bottom: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%; border: 2px solid #080c16; background: var(--text-dim); }
+        .status-dot.online { background: var(--accent-emerald); box-shadow: 0 0 12px rgba(16,185,129,0.9); }
 
-        .brand-title { font-weight: 800; font-size: 1.25rem; background: linear-gradient(90deg, #818cf8, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .brand-title { font-weight: 800; font-size: 1.25rem; background: linear-gradient(90deg, #818cf8, var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        /* Крипто-бейджи TON / Stars */
+        .crypto-bar { display: flex; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); }
+        .crypto-chip { flex: 1; padding: 6px 10px; border-radius: 12px; background: var(--glass-card); border: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: 0.2s; }
+        .crypto-chip:hover { border-color: var(--accent-cyan); background: rgba(255,255,255,0.06); }
 
         .stories-bar { display: flex; gap: 12px; padding: 12px 18px 6px; overflow-x: auto; border-bottom: 1px solid var(--glass-border); }
         .stories-bar::-webkit-scrollbar { display: none; }
         .story-node { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; flex-shrink: 0; }
-        .story-ring { width: 52px; height: 52px; border-radius: 50%; padding: 2px; background: linear-gradient(135deg, #06b6d4, #ec4899); display: flex; align-items: center; justify-content: center; }
+        .story-ring { width: 52px; height: 52px; border-radius: 50%; padding: 2px; background: linear-gradient(135deg, var(--accent-cyan), #ec4899); display: flex; align-items: center; justify-content: center; }
         .story-node.my-add .story-ring { background: var(--glass-border); }
-        .story-avatar { width: 100%; height: 100%; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; border: 2px solid var(--bg-body); }
+        .story-avatar { width: 100%; height: 100%; border-radius: 50%; background: #131b2e; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; border: 2px solid var(--bg-body); }
         .story-user { font-size: 0.72rem; color: var(--text-muted); max-width: 58px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .search-box { padding: 10px 18px 6px; }
         .input-glass { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); padding: 12px 18px; border-radius: 16px; color: #fff; outline: none; font-size: 0.9rem; transition: 0.2s; }
-        .input-glass:focus { border-color: var(--primary); background: rgba(255,255,255,0.07); box-shadow: 0 0 15px var(--primary-glow); }
+        .input-glass:focus { border-color: var(--accent-cyan); background: rgba(255,255,255,0.07); box-shadow: 0 0 15px rgba(0,242,254,0.3); }
 
         .tabs { display: flex; padding: 6px 18px; gap: 8px; }
         .tab-btn { flex: 1; padding: 10px; border-radius: 12px; border: none; background: transparent; color: var(--text-muted); font-weight: 700; font-size: 0.85rem; cursor: pointer; transition: 0.2s; }
         .tab-btn.active { color: #fff; background: var(--glass-card); border: 1px solid var(--glass-border); }
 
         .items-list { flex: 1; overflow-y: auto; padding: 8px 12px; }
-        .items-list::-webkit-scrollbar { width: 5px; }
+        .items-list::-webkit-scrollbar { width: 4px; }
         .items-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 
         .item-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 18px; cursor: pointer; transition: 0.2s; margin-bottom: 4px; }
         .item-card:hover { background: var(--glass-hover); }
-        .item-card.active { background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3); }
+        .item-card.active { background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.4); }
 
         .item-info { flex: 1; min-width: 0; }
         .item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
@@ -112,7 +111,7 @@
             .chat-area { position: absolute; width: 100%; height: 100%; transform: translateX(100%); }
         }
 
-        .chat-header { padding: 14px 24px; border-bottom: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: space-between; background: rgba(13, 19, 33, 0.4); backdrop-filter: blur(10px); }
+        .chat-header { padding: 14px 24px; border-bottom: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: space-between; background: rgba(10, 14, 26, 0.5); backdrop-filter: blur(15px); }
         .header-left { display: flex; align-items: center; gap: 14px; }
         .btn-back { display: none; background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; }
         @media (max-width: 768px) { .btn-back { display: block; } }
@@ -130,7 +129,7 @@
         .pinned-text { font-size: 0.82rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%; }
 
         .reply-preview-bar {
-            display: none; padding: 10px 24px; background: rgba(15, 23, 42, 0.8); border-top: 1px solid var(--glass-border);
+            display: none; padding: 10px 24px; background: rgba(13, 19, 33, 0.9); border-top: 1px solid var(--glass-border);
             align-items: center; justify-content: space-between;
         }
         .reply-line { border-left: 3px solid var(--accent-cyan); padding-left: 10px; }
@@ -138,37 +137,60 @@
         .reply-txt { font-size: 0.82rem; color: var(--text-muted); }
 
         .msg-container { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
-        .msg-container::-webkit-scrollbar { width: 5px; }
+        .msg-container::-webkit-scrollbar { width: 4px; }
         .msg-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 
-        .msg-wrap { display: flex; flex-direction: column; max-width: 72%; position: relative; }
+        .msg-wrap { display: flex; flex-direction: column; max-width: 74%; position: relative; }
         .msg-wrap.out { align-self: flex-end; align-items: flex-end; }
         .msg-wrap.in { align-self: flex-start; align-items: flex-start; }
 
-        .forward-tag { font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
+        .forward-tag { font-size: 0.72rem; color: var(--accent-cyan); font-weight: 700; margin-bottom: 3px; }
 
         .msg-quote {
-            background: rgba(0,0,0,0.25); border-left: 3px solid var(--accent-cyan); padding: 4px 8px;
-            border-radius: 4px; margin-bottom: 6px; font-size: 0.8rem; cursor: pointer;
+            background: rgba(0,0,0,0.3); border-left: 3px solid var(--accent-cyan); padding: 4px 8px;
+            border-radius: 6px; margin-bottom: 6px; font-size: 0.8rem; cursor: pointer;
         }
-        .msg-quote-user { font-weight: 700; color: var(--accent-cyan); font-size: 0.72rem; }
 
         .msg-bubble {
             padding: 12px 18px; border-radius: var(--radius-bubble); font-size: 0.95rem; line-height: 1.45;
-            position: relative; word-break: break-word; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            position: relative; word-break: break-word; box-shadow: 0 4px 18px rgba(0,0,0,0.3);
         }
         .msg-wrap.out .msg-bubble { background: var(--msg-out); color: #fff; border-bottom-right-radius: 4px; }
         .msg-wrap.in .msg-bubble { background: var(--msg-in); color: var(--text-main); border-bottom-left-radius: 4px; border: 1px solid var(--glass-border); }
+
+        /* ОПРОСЫ (POLLS) */
+        .poll-card { min-width: 260px; padding: 4px 0; }
+        .poll-question { font-weight: 700; font-size: 1rem; margin-bottom: 12px; }
+        .poll-option-btn {
+            width: 100%; padding: 10px 14px; border-radius: 12px; background: rgba(255,255,255,0.06);
+            border: 1px solid var(--glass-border); color: #fff; text-align: left; font-size: 0.88rem;
+            margin-bottom: 6px; cursor: pointer; transition: 0.2s; position: relative; overflow: hidden;
+        }
+        .poll-option-btn:hover { background: rgba(255,255,255,0.12); }
+        .poll-fill { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(0,242,254,0.25); z-index: 0; transition: width 0.4s ease; }
+        .poll-text-rel { position: relative; z-index: 1; display: flex; justify-content: space-between; }
 
         /* СПОЙЛЕР */
         .spoiler-wrap { position: relative; display: inline-block; overflow: hidden; border-radius: 14px; cursor: pointer; margin-top: 6px; }
         .spoiler-blur { filter: blur(25px); transition: filter 0.3s ease; }
         .spoiler-wrap.revealed .spoiler-blur { filter: none; }
-        .spoiler-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); font-size: 0.8rem; font-weight: 800; color: #fff; pointer-events: none; transition: opacity 0.2s; }
+        .spoiler-badge { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); font-size: 0.8rem; font-weight: 800; color: #fff; }
         .spoiler-wrap.revealed .spoiler-badge { opacity: 0; }
 
         .msg-img { max-width: 100%; max-height: 320px; border-radius: 14px; display: block; }
-        .audio-player-box { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+        
+        /* Визуализатор записи звука */
+        .voice-recording-overlay {
+            display: none; flex: 1; align-items: center; gap: 12px; padding: 0 16px;
+            background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 20px; height: 48px;
+        }
+        .wave-bar { width: 3px; height: 14px; background: #ef4444; border-radius: 3px; animation: wave 0.8s infinite ease-in-out; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 22px; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 28px; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 18px; }
+        @keyframes wave { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+
         .btn-play-voice { width: 36px; height: 36px; border-radius: 50%; border: none; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 
         .msg-meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 0.72rem; color: rgba(255,255,255,0.6); margin-top: 4px; }
@@ -183,7 +205,7 @@
         .react-badge.active { background: rgba(99, 102, 241, 0.3); border-color: var(--primary); }
 
         .quick-react-menu {
-            display: none; position: absolute; top: -38px; background: rgba(15, 23, 42, 0.95);
+            display: none; position: absolute; top: -38px; background: rgba(10, 14, 26, 0.95);
             border: 1px solid var(--glass-border); border-radius: 20px; padding: 4px 8px; gap: 6px;
             box-shadow: 0 8px 25px rgba(0,0,0,0.6); z-index: 10; backdrop-filter: blur(10px);
         }
@@ -191,36 +213,35 @@
         .quick-react-item { cursor: pointer; font-size: 1.1rem; transition: transform 0.15s; }
         .quick-react-item:hover { transform: scale(1.3); }
 
-        .chat-input-bar { padding: 14px 20px; border-top: 1px solid var(--glass-border); display: flex; align-items: center; gap: 10px; background: rgba(13, 19, 33, 0.6); backdrop-filter: blur(10px); }
+        .chat-input-bar { padding: 14px 20px; border-top: 1px solid var(--glass-border); display: flex; align-items: center; gap: 10px; background: rgba(10, 14, 26, 0.6); backdrop-filter: blur(15px); }
         .btn-icon { width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--glass-card); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
         .btn-icon:hover { background: rgba(255,255,255,0.12); }
-        .btn-icon.recording { background: #ef4444; border-color: #ef4444; animation: blink 1s infinite; }
+        .btn-icon.recording { background: #ef4444; border-color: #ef4444; }
 
         .btn-send {
-            width: 48px; height: 48px; border-radius: 18px; border: none; background: linear-gradient(135deg, var(--primary), #6366f1);
+            width: 48px; height: 48px; border-radius: 18px; border: none; background: linear-gradient(135deg, var(--primary), var(--accent-cyan));
             color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer;
-            box-shadow: 0 4px 18px var(--primary-glow); transition: 0.2s; flex-shrink: 0;
+            box-shadow: 0 4px 20px var(--primary-glow); transition: 0.2s; flex-shrink: 0;
         }
 
-        .glass-modal { position: fixed; inset: 0; background: rgba(4, 7, 15, 0.85); backdrop-filter: blur(25px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+        .glass-modal { position: fixed; inset: 0; background: rgba(2, 4, 10, 0.88); backdrop-filter: blur(25px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
         .glass-modal.active { display: flex; }
         .modal-card {
-            background: rgba(17, 24, 39, 0.95); border: 1px solid var(--glass-border); border-radius: 28px;
-            width: 100%; max-width: 400px; padding: 32px; box-shadow: 0 35px 80px rgba(0,0,0,0.9);
+            background: rgba(13, 19, 33, 0.96); border: 1px solid var(--glass-border); border-radius: 28px;
+            width: 100%; max-width: 400px; padding: 32px; box-shadow: 0 35px 90px rgba(0,0,0,0.95);
             display: flex; flex-direction: column; gap: 16px;
         }
         .btn-action {
-            width: 100%; padding: 14px; border-radius: 16px; border: none; background: linear-gradient(135deg, var(--primary), #6366f1);
-            color: #fff; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px var(--primary-glow);
+            width: 100%; padding: 14px; border-radius: 16px; border: none; background: linear-gradient(135deg, var(--primary), var(--accent-cyan));
+            color: #fff; font-weight: 700; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 18px var(--primary-glow);
         }
 
-        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e1b4b; border: 1px solid var(--primary); padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 0.9rem; display: none; z-index: 200; box-shadow: 0 8px 30px var(--primary-glow); }
+        .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #131b2e; border: 1px solid var(--accent-cyan); padding: 12px 24px; border-radius: 30px; font-weight: 600; font-size: 0.9rem; display: none; z-index: 200; box-shadow: 0 8px 30px rgba(0,242,254,0.3); }
     </style>
 </head>
 <body>
 
-<div class="ambient-sphere sphere-1"></div>
-<div class="ambient-sphere sphere-2"></div>
+<canvas id="neuralCanvas"></canvas>
 
 <div class="app-window">
     <div class="sidebar" id="sidebar">
@@ -233,10 +254,10 @@
                 <div>
                     <div style="display:flex; align-items:center; gap:6px;">
                         <span class="brand-title" id="myUsername">MyGram</span>
-                        <span id="myStatusEmoji" style="font-size:0.9rem;">⚡</span>
+                        <span id="myStatusEmoji" style="font-size:0.9rem;">🚀</span>
                         <span id="myBadge"></span>
                     </div>
-                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Настройки и статус</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Neural OS ⚡</div>
                 </div>
             </div>
             <div style="display:flex; gap:6px;">
@@ -245,7 +266,17 @@
             </div>
         </div>
 
-        <!-- ЛЕНТА STORIES -->
+        <!-- КРИПТО-БАЛАНС -->
+        <div class="crypto-bar">
+            <div class="crypto-chip" onclick="openTransferModal()">
+                <span>⭐️ Stars:</span> <strong id="valStars" style="color:#fbbf24;">250</strong>
+            </div>
+            <div class="crypto-chip">
+                <span>💎 TON:</span> <strong id="valTon" style="color:var(--accent-cyan);">5.00</strong>
+            </div>
+        </div>
+
+        <!-- STORIES -->
         <div class="stories-bar" id="storiesList">
             <div class="story-node my-add" onclick="openAddStory()">
                 <div class="story-ring"><div class="story-avatar">+</div></div>
@@ -312,8 +343,18 @@
         <div class="chat-input-bar" id="inputBar" style="display: none;">
             <input type="file" id="filePicker" accept="image/*" style="display:none;" onchange="handleFileUpload(event)">
             <button class="btn-icon" onclick="document.getElementById('filePicker').click()">📎</button>
+            <button class="btn-icon" onclick="openPollCreator()" title="Создать опрос">📊</button>
             <button class="btn-icon" id="spoilerToggleBtn" onclick="toggleSpoilerState()" title="Спойлер">🙈</button>
             <button class="btn-icon" id="voiceBtn" onclick="toggleVoiceRecording()">🎤</button>
+
+            <!-- Эквалайзер голосового -->
+            <div class="voice-recording-overlay" id="voiceRecordingBox">
+                <div style="display:flex; gap:3px; align-items:center;">
+                    <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                </div>
+                <span style="font-size:0.85rem; color:#ef4444; font-weight:700;">Идет запись звука...</span>
+            </div>
+
             <input type="text" id="msgInput" class="input-glass" style="border-radius:20px;" placeholder="Сообщение или @ai вопрос..." oninput="reportTyping()" onkeydown="if(event.key==='Enter') sendAction()">
             <button class="btn-send" onclick="sendAction()">➤</button>
         </div>
@@ -347,10 +388,50 @@
     </div>
 </div>
 
-<!-- Модалка профиля и выбора темы -->
+<!-- Модалка создания опроса -->
+<div class="glass-modal" id="modalPoll">
+    <div class="modal-card">
+        <h3>Новый опрос 📊</h3>
+        <input type="text" id="pollQuestion" class="input-glass" placeholder="Вопрос опроса...">
+        <input type="text" id="pollOpt1" class="input-glass" placeholder="Вариант 1">
+        <input type="text" id="pollOpt2" class="input-glass" placeholder="Вариант 2">
+        <input type="text" id="pollOpt3" class="input-glass" placeholder="Вариант 3 (необязательно)">
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalPoll')">Отмена</button>
+            <button class="btn-action" onclick="submitCreatePoll()">Создать опрос</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка перевода Stars -->
+<div class="glass-modal" id="modalTransfer">
+    <div class="modal-card">
+        <h3>Перевод Stars ⭐️</h3>
+        <input type="text" id="transferTarget" class="input-glass" placeholder="Получатель (@логин)">
+        <input type="number" id="transferAmount" class="input-glass" placeholder="Количество Stars">
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalTransfer')">Отмена</button>
+            <button class="btn-action" onclick="submitTransferStars()">Отправить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка пересылки -->
+<div class="glass-modal" id="modalForward">
+    <div class="modal-card">
+        <h3>Переслать сообщение ↗️</h3>
+        <input type="text" id="forwardRecipient" class="input-glass" placeholder="Кому (@логин)...">
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalForward')">Отмена</button>
+            <button class="btn-action" onclick="submitForward()">Отправить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка профиля -->
 <div class="glass-modal" id="modalProfile">
     <div class="modal-card">
-        <h3>Настройки профиля ⚙️</h3>
+        <h3>Профиль и статус 🚀</h3>
         <div>
             <label style="font-size:0.8rem; color:var(--text-muted);">Статус эмодзи:</label>
             <div style="display:flex; justify-content:space-around; font-size:1.6rem; padding:8px 0;">
@@ -362,32 +443,11 @@
                 <span style="cursor:pointer;" onclick="setStatus('')">❌</span>
             </div>
         </div>
-        <div>
-            <label style="font-size:0.8rem; color:var(--text-muted);">Цветовая тема:</label>
-            <div style="display:flex; gap:8px; margin-top:8px;">
-                <button class="btn-action" style="background:#6366f1; padding:8px;" onclick="setTheme('')">Indigo</button>
-                <button class="btn-action" style="background:#06b6d4; padding:8px;" onclick="setTheme('theme-cyan')">Cyan</button>
-                <button class="btn-action" style="background:#10b981; padding:8px;" onclick="setTheme('theme-emerald')">Emerald</button>
-                <button class="btn-action" style="background:#f97316; padding:8px;" onclick="setTheme('theme-orange')">Orange</button>
-            </div>
-        </div>
-        <button class="btn-action" style="background:var(--glass-card); margin-top:8px;" onclick="closeModal('modalProfile')">Закрыть</button>
+        <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalProfile')">Закрыть</button>
     </div>
 </div>
 
-<!-- Модалка пересылки сообщения -->
-<div class="glass-modal" id="modalForward">
-    <div class="modal-card">
-        <h3>Переслать сообщение ↗️</h3>
-        <input type="text" id="forwardRecipient" class="input-glass" placeholder="Кому (@логин получателя)...">
-        <div style="display:flex; gap:10px;">
-            <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalForward')">Отмена</button>
-            <button class="btn-action" onclick="submitForward()">Отправить</button>
-        </div>
-    </div>
-</div>
-
-<!-- Модалка просмотра истории -->
+<!-- Модалка историй -->
 <div class="glass-modal" id="modalStoryView">
     <div class="modal-card" style="max-width:340px; padding:16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -399,12 +459,11 @@
     </div>
 </div>
 
-<!-- Модалка добавления истории -->
 <div class="glass-modal" id="modalAddStory">
     <div class="modal-card">
         <h3>Добавить историю 📸</h3>
         <input type="file" id="storyFileInput" accept="image/*" class="input-glass">
-        <input type="text" id="storyCaptionInput" class="input-glass" placeholder="Подпись к истории...">
+        <input type="text" id="storyCaptionInput" class="input-glass" placeholder="Подпись...">
         <div style="display:flex; gap:10px;">
             <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalAddStory')">Отмена</button>
             <button class="btn-action" onclick="submitAddStory()">Опубликовать</button>
@@ -412,13 +471,12 @@
     </div>
 </div>
 
-<!-- Модалка создания канала -->
 <div class="glass-modal" id="modalChannel">
     <div class="modal-card">
         <h3>Создать канал 📢</h3>
-        <input type="text" id="newChanName" class="input-glass" placeholder="Название канала">
-        <input type="text" id="newChanTag" class="input-glass" placeholder="Тег (например: dev)">
-        <textarea id="newChanDesc" class="input-glass" rows="3" placeholder="Описание канала..."></textarea>
+        <input type="text" id="newChanName" class="input-glass" placeholder="Название">
+        <input type="text" id="newChanTag" class="input-glass" placeholder="Тег (например: ai)">
+        <textarea id="newChanDesc" class="input-glass" rows="3" placeholder="Описание..."></textarea>
         <div style="display:flex; gap:10px;">
             <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalChannel')">Отмена</button>
             <button class="btn-action" onclick="submitCreateChannel()">Создать</button>
@@ -429,6 +487,52 @@
 <div class="toast" id="toast"></div>
 
 <script>
+    // ИНТЕРАКТИВНЫЙ НЕОНОВЫЙ ФОН CANVAS (Neural Web)
+    const canvas = document.getElementById("neuralCanvas");
+    const ctx = canvas.getContext("2d");
+    let particles = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    for (let i = 0; i < 45; i++) {
+        particles.push({
+            x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+            vx: (Math.random() - 0.5) * 0.8, vy: (Math.random() - 0.5) * 0.8, radius: Math.random() * 2 + 1
+        });
+    }
+
+    function animateNeuralWeb() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < particles.length; i++) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy;
+            if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+            if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "#00f2fe";
+            ctx.fill();
+
+            for (let j = i + 1; j < particles.length; j++) {
+                let p2 = particles[j];
+                let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                if (dist < 130) {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.strokeStyle = `rgba(99, 102, 241, ${1 - dist / 130})`;
+                    ctx.lineWidth = 0.6;
+                    ctx.stroke();
+                }
+            }
+        }
+        requestAnimationFrame(animateNeuralWeb);
+    }
+    animateNeuralWeb();
+
+    // ЛОГИКА МЕССЕНДЖЕРА
     let ws = null;
     let me = "";
     let currentTab = "chats";
@@ -438,26 +542,22 @@
     let forwardTargetMsg = null;
     let isSpoilerActive = false;
 
-    // Голосовые
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
 
-    // Звук сообщения
-    function playNotificationSound() {
+    function haptic() { if (navigator.vibrate) navigator.vibrate(20); }
+
+    function playSound() {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
-            gain.gain.setValueAtTime(0.15, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.25);
+            const c = new (window.AudioContext || window.webkitAudioContext)();
+            const o = c.createOscillator(), g = c.createGain();
+            o.type = "sine"; o.frequency.setValueAtTime(600, c.currentTime);
+            o.frequency.exponentialRampToValueAtTime(900, c.currentTime + 0.12);
+            g.gain.setValueAtTime(0.12, c.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, c.currentTime + 0.2);
+            o.connect(g); g.connect(c.destination);
+            o.start(); o.stop(c.currentTime + 0.2);
         } catch(e) {}
     }
 
@@ -483,22 +583,24 @@
                 localStorage.setItem("mg_session_token", data.token);
                 document.getElementById("myUsername").innerText = me;
                 document.getElementById("myAvatar").innerText = me[0].toUpperCase();
-                document.getElementById("myStatusEmoji").innerText = data.emoji_status || "";
-                document.getElementById("myBio").innerText = data.bio || "@" + me;
+                document.getElementById("myStatusEmoji").innerText = data.emoji_status || "🚀";
+                document.getElementById("valStars").innerText = data.stars || 0;
+                document.getElementById("valTon").innerText = (data.ton || 0).toFixed(2);
 
-                if (data.is_admin) {
-                    document.getElementById("myBadge").innerHTML = '<span class="admin-badge">ADMIN</span>';
-                } else if (data.verified) {
-                    document.getElementById("myBadge").innerHTML = '<span class="badge-verified">✓</span>';
-                }
+                if (data.is_admin) document.getElementById("myBadge").innerHTML = '<span class="admin-badge">ADMIN</span>';
+                else if (data.verified) document.getElementById("myBadge").innerHTML = '<span class="badge-verified">✓</span>';
+
                 loadTabContent();
                 ws.send(JSON.stringify({ action: "get_stories" }));
             }
             else if (data.action === "auth_error") {
                 showToast(data.msg);
             }
-            else if (data.action === "status_updated") {
-                document.getElementById("myStatusEmoji").innerText = data.status;
+            else if (data.action === "balance_update") {
+                document.getElementById("valStars").innerText = data.stars;
+            }
+            else if (data.action === "poll_update") {
+                updatePollUI(data.id, data.results);
             }
             else if (data.action === "stories_list") {
                 renderStories(data.items);
@@ -511,9 +613,6 @@
             }
             else if (data.action === "channels_list") {
                 renderChannels(data.items);
-            }
-            else if (data.action === "search_results") {
-                renderSearchResults(data.users, data.channels);
             }
             else if (data.action === "history") {
                 renderHistory(data.items);
@@ -528,7 +627,8 @@
                 if (activeChat && activeChat.type === 'chat' && (activeChat.target === data.sender || data.sender === me || (activeChat.target === me && data.sender === me))) {
                     appendMsg(data);
                 } else {
-                    playNotificationSound();
+                    playSound();
+                    haptic();
                     loadTabContent();
                 }
             }
@@ -612,18 +712,22 @@
         ws.send(JSON.stringify({ action: "update_status", status: st }));
         closeModal("modalProfile");
     }
-    function setTheme(th) {
-        document.body.className = th;
-        localStorage.setItem("mg_theme", th);
+
+    function openTransferModal() { document.getElementById("modalTransfer").classList.add("active"); }
+    function submitTransferStars() {
+        const to = document.getElementById("transferTarget").value.trim().toLowerCase().replace("@", "");
+        const amount = parseInt(document.getElementById("transferAmount").value);
+        if (!to || !amount) return showToast("Заполните поля!");
+        ws.send(JSON.stringify({ action: "transfer_stars", to, amount }));
+        closeModal("modalTransfer");
     }
 
     function openSavedMessages() {
         openChat(me);
         document.getElementById("chatTitle").innerText = "🔖 Избранное";
-        document.getElementById("chatStatusText").innerText = "ваши сохраненные сообщения";
+        document.getElementById("chatStatusText").innerText = "ваше персональное облако";
     }
 
-    // Истории
     function renderStories(items) {
         const bar = document.getElementById("storiesList");
         bar.innerHTML = `
@@ -648,15 +752,14 @@
     function submitAddStory() {
         const file = document.getElementById("storyFileInput").files[0];
         const caption = document.getElementById("storyCaptionInput").value;
-        if (!file) return showToast("Выберите картинку!");
-
-        const reader = new FileReader();
-        reader.onload = () => {
-            ws.send(JSON.stringify({ action: "add_story", media: reader.result, caption }));
+        if (!file) return showToast("Выберите фото!");
+        const r = new FileReader();
+        r.onload = () => {
+            ws.send(JSON.stringify({ action: "add_story", media: r.result, caption }));
             closeModal("modalAddStory");
-            showToast("История опубликована!");
+            showToast("История добавлена!");
         };
-        reader.readAsDataURL(file);
+        r.readAsDataURL(file);
     }
 
     function openStoryViewer(s) {
@@ -666,7 +769,6 @@
         document.getElementById("modalStoryView").classList.add("active");
     }
 
-    // Вкладки
     function switchTab(tab) {
         currentTab = tab;
         document.getElementById("tabChatsBtn").classList.toggle("active", tab === 'chats');
@@ -679,9 +781,7 @@
     function handleSearch(val) {
         const q = val.trim();
         if (!q) return loadTabContent();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ action: "search", query: q }));
-        }
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: "search", query: q }));
     }
 
     function loadTabContent() {
@@ -692,11 +792,10 @@
 
     function renderChats(items) {
         const box = document.getElementById("itemsList");
-        box.innerHTML = items.length ? "" : "<div style='padding:20px; color:var(--text-muted); text-align:center; font-size:0.85rem;'>Чатов пока нет. Найдите людей через поиск! 🔍</div>";
+        box.innerHTML = items.length ? "" : "<div style='padding:20px; color:var(--text-muted); text-align:center;'>Чатов нет. Найдите кого-нибудь через поиск! 🔍</div>";
         items.forEach(c => {
             const vBadge = c.verified ? '<span class="badge-verified">✓</span>' : '';
             const unread = c.unread > 0 ? `<span class="unread-badge">${c.unread}</span>` : '';
-            const st = c.status ? `<span>${c.status}</span>` : '';
             const isSaved = c.username === me;
             box.innerHTML += `
                 <div class="item-card ${activeChat && activeChat.target === c.username ? 'active' : ''}" onclick="openChat('${c.username}')">
@@ -706,7 +805,7 @@
                     </div>
                     <div class="item-info">
                         <div class="item-top">
-                            <span class="item-name">${isSaved ? 'Избранное' : c.username} ${st} ${vBadge}</span>
+                            <span class="item-name">${isSaved ? 'Избранное' : c.username} ${c.status || ''} ${vBadge}</span>
                             <span class="item-time">${c.last_time || ''}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -722,45 +821,15 @@
         const box = document.getElementById("itemsList");
         box.innerHTML = items.length ? "" : "<div style='padding:20px; color:var(--text-muted); text-align:center;'>Каналов пока нет. Создайте первый! 📢</div>";
         items.forEach(ch => {
-            const vBadge = ch.verified ? '<span class="badge-verified">✓</span>' : '';
             box.innerHTML += `
                 <div class="item-card" onclick='openChannel(${JSON.stringify(ch)})'>
                     <div class="avatar-wrap"><div class="avatar" style="background:#0284c7;">📢</div></div>
                     <div class="item-info">
-                        <div class="item-top"><span class="item-name">${ch.name} ${vBadge}</span><span class="item-time">@${ch.tag}</span></div>
+                        <div class="item-top"><span class="item-name">${ch.name}</span><span class="item-time">@${ch.tag}</span></div>
                         <span class="item-desc">${ch.subs} подписчиков • ${ch.desc || ''}</span>
                     </div>
                 </div>`;
         });
-    }
-
-    function renderSearchResults(users, channels) {
-        const box = document.getElementById("itemsList");
-        box.innerHTML = "";
-        if (!users.length && !channels.length) {
-            box.innerHTML = "<div style='padding:20px; color:var(--text-muted); text-align:center;'>Ничего не найдено</div>";
-            return;
-        }
-        if (users.length) {
-            box.innerHTML += "<div style='padding:8px 14px; font-size:0.75rem; color:var(--accent-cyan); font-weight:800;'>ПОЛЬЗОВАТЕЛИ</div>";
-            users.forEach(u => {
-                box.innerHTML += `
-                    <div class="item-card" onclick="openChat('${u.username}')">
-                        <div class="avatar-wrap"><div class="avatar">${u.username[0].toUpperCase()}</div></div>
-                        <div class="item-info"><span class="item-name">${u.username} ${u.status || ''}</span><span class="item-desc">${u.bio || ''}</span></div>
-                    </div>`;
-            });
-        }
-        if (channels.length) {
-            box.innerHTML += "<div style='padding:8px 14px; font-size:0.75rem; color:#c084fc; font-weight:800;'>КАНАЛЫ</div>";
-            channels.forEach(ch => {
-                box.innerHTML += `
-                    <div class="item-card" onclick='openChannel(${JSON.stringify(ch)})'>
-                        <div class="avatar-wrap"><div class="avatar" style="background:#0284c7;">📢</div></div>
-                        <div class="item-info"><span class="item-name">${ch.name}</span><span class="item-desc">@${ch.tag}</span></div>
-                    </div>`;
-            });
-        }
     }
 
     function openChat(username) {
@@ -783,7 +852,6 @@
         document.getElementById("chatTitle").innerText = ch.name;
         document.getElementById("chatStatusText").innerText = `${ch.subs} подписчиков`;
         document.getElementById("chatAvatar").innerText = "📢";
-        document.getElementById("chatStatusDot").className = "status-dot";
         document.getElementById("msgBox").innerHTML = "";
         hidePinnedBar();
         updateChannelFooter();
@@ -793,14 +861,11 @@
     function updateChannelFooter() {
         if (!activeChat || activeChat.type !== 'channel') return;
         const isOwner = activeChat.owner === me;
-        if (isOwner) {
-            document.getElementById("inputBar").style.display = "flex";
-            document.getElementById("subscribeBar").style.display = "none";
-        } else {
-            document.getElementById("inputBar").style.display = "none";
-            document.getElementById("subscribeBar").style.display = "flex";
+        document.getElementById("inputBar").style.display = isOwner ? "flex" : "none";
+        document.getElementById("subscribeBar").style.display = isOwner ? "none" : "flex";
+        if (!isOwner) {
             const btn = document.getElementById("subBtn");
-            btn.innerText = activeChat.is_sub ? "Отписаться от канала" : "Подписаться на канал";
+            btn.innerText = activeChat.is_sub ? "Отписаться" : "Подписаться";
         }
     }
 
@@ -848,34 +913,59 @@
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }
-    function pinMessage(id) {
-        ws.send(JSON.stringify({ action: "pin_msg", id, with: activeChat.target }));
-    }
+    function pinMessage(id) { ws.send(JSON.stringify({ action: "pin_msg", id, with: activeChat.target })); }
 
     function setReply(id, name, text) {
         replyTarget = { id, name, text };
         document.getElementById("replyBar").style.display = "flex";
         document.getElementById("replyName").innerText = name;
-        document.getElementById("replyText").innerText = text || "Медиафайл";
+        document.getElementById("replyText").innerText = text || "Медиа";
         document.getElementById("msgInput").focus();
     }
-    function cancelReply() {
-        replyTarget = null;
-        document.getElementById("replyBar").style.display = "none";
-    }
+    function cancelReply() { replyTarget = null; document.getElementById("replyBar").style.display = "none"; }
 
     function toggleSpoilerState() {
         isSpoilerActive = !isSpoilerActive;
         const btn = document.getElementById("spoilerToggleBtn");
-        btn.style.borderColor = isSpoilerActive ? "var(--primary)" : "var(--glass-border)";
         btn.style.background = isSpoilerActive ? "var(--primary-glow)" : "var(--glass-card)";
-        showToast(isSpoilerActive ? "Режим спойлера включен" : "Спойлер выключен");
+        showToast(isSpoilerActive ? "Спойлер включен 🙈" : "Спойлер выключен");
     }
 
-    function openForwardModal(msg) {
-        forwardTargetMsg = msg;
-        document.getElementById("modalForward").classList.add("active");
+    // Опросы
+    function openPollCreator() { document.getElementById("modalPoll").classList.add("active"); }
+    function submitCreatePoll() {
+        const q = document.getElementById("pollQuestion").value.trim();
+        const o1 = document.getElementById("pollOpt1").value.trim();
+        const o2 = document.getElementById("pollOpt2").value.trim();
+        const o3 = document.getElementById("pollOpt3").value.trim();
+        if (!q || !o1 || !o2) return showToast("Укажите вопрос и минимум 2 варианта!");
+
+        const opts = [o1, o2];
+        if (o3) opts.push(o3);
+
+        const pollData = { question: q, options: opts };
+        ws.send(JSON.stringify({ action: "send_msg", to: activeChat.target, text: "", media_type: "poll", poll_data: pollData }));
+        closeModal("modalPoll");
     }
+
+    function votePoll(msgId, optIdx) {
+        haptic();
+        ws.send(JSON.stringify({ action: "vote_poll", id: msgId, option_index: optIdx }));
+    }
+
+    function updatePollUI(msgId, results) {
+        const el = document.getElementById(`poll-opts-${msgId}`);
+        if (!el) return;
+        const total = Object.values(results).reduce((a, b) => a + b, 0) || 1;
+        el.querySelectorAll(".poll-option-btn").forEach((btn, idx) => {
+            const count = results[idx] || 0;
+            const pct = Math.round((count / total) * 100);
+            btn.querySelector(".poll-fill").style.width = pct + "%";
+            btn.querySelector(".poll-pct").innerText = pct + "%";
+        });
+    }
+
+    function openForwardModal(msg) { forwardTargetMsg = msg; document.getElementById("modalForward").classList.add("active"); }
     function submitForward() {
         const to = document.getElementById("forwardRecipient").value.trim().toLowerCase().replace("@", "");
         if (!to || !forwardTargetMsg) return showToast("Укажите получателя!");
@@ -922,9 +1012,27 @@
             }
         } else if (m.media_type === 'audio' && m.media_data) {
             mediaContent = `
-                <div class="audio-player-box">
+                <div style="display:flex; align-items:center; gap:8px;">
                     <button class="btn-play-voice" onclick="playVoiceAudio('${m.media_data}')">▶</button>
-                    <span style="font-size:0.8rem; font-weight:700;">Голосовое</span>
+                    <span style="font-size:0.82rem; font-weight:700;">Голосовое</span>
+                </div>`;
+        } else if (m.media_type === 'poll' && m.poll_data) {
+            const results = m.poll_results || {};
+            const total = Object.values(results).reduce((a, b) => a + b, 0) || 1;
+            let optsHtml = "";
+            m.poll_data.options.forEach((opt, idx) => {
+                const count = results[idx] || 0;
+                const pct = Math.round((count / total) * 100);
+                optsHtml += `
+                    <div class="poll-option-btn" onclick="votePoll(${m.id}, ${idx})">
+                        <div class="poll-fill" style="width:${pct}%"></div>
+                        <div class="poll-text-rel"><span>${opt}</span><span class="poll-pct">${pct}%</span></div>
+                    </div>`;
+            });
+            mediaContent = `
+                <div class="poll-card">
+                    <div class="poll-question">📊 ${escapeHtml(m.poll_data.question)}</div>
+                    <div id="poll-opts-${m.id}">${optsHtml}</div>
                 </div>`;
         }
 
@@ -932,7 +1040,7 @@
         if (m.reply_user) {
             quoteContent = `
                 <div class="msg-quote" onclick="document.getElementById('msg-${m.reply_to_id}')?.scrollIntoView({behavior:'smooth'})">
-                    <div class="msg-quote-user">${m.reply_user}</div>
+                    <strong style="color:var(--accent-cyan); font-size:0.75rem;">${m.reply_user}</strong>
                     <div>${escapeHtml(m.reply_text || '')}</div>
                 </div>`;
         }
@@ -970,22 +1078,11 @@
         wrap.style.maxWidth = "680px";
         wrap.id = `post-${p.id}`;
 
-        let mediaHtml = "";
-        if (p.media_type === 'image' && p.media_data) {
-            if (p.is_spoiler) {
-                mediaHtml = `
-                    <div class="spoiler-wrap" onclick="this.classList.toggle('revealed')">
-                        <img src="${p.media_data}" class="msg-img spoiler-blur">
-                        <div class="spoiler-badge">СПОЙЛЕР 🙈</div>
-                    </div>`;
-            } else {
-                mediaHtml = `<img src="${p.media_data}" class="msg-img">`;
-            }
-        }
+        let mediaHtml = p.media_type === 'image' && p.media_data ? `<img src="${p.media_data}" class="msg-img">` : '';
 
         wrap.innerHTML = `
-            <div class="msg-bubble" style="background:var(--glass-card); border:1px solid var(--glass-border); border-radius:22px; padding:18px;">
-                <div style="font-weight:800; font-size:0.88rem; color:var(--accent-cyan); margin-bottom:8px;">${p.sender}</div>
+            <div class="msg-bubble" style="background:var(--glass-card); border:1px solid var(--glass-border); border-radius:24px; padding:20px;">
+                <div style="font-weight:800; font-size:0.9rem; color:var(--accent-cyan); margin-bottom:8px;">${p.sender}</div>
                 ${mediaHtml}
                 <div style="font-size:1rem; line-height:1.5; margin-top:6px;">${escapeHtml(p.text)}</div>
                 <div class="msg-meta"><span>${p.time}</span></div>
@@ -1004,13 +1101,13 @@
         box.scrollTop = box.scrollHeight;
     }
 
-    function playVoiceAudio(base64) {
-        const snd = new Audio(base64);
-        snd.play();
-    }
+    function playVoiceAudio(base64) { new Audio(base64).play(); }
 
     async function toggleVoiceRecording() {
         const btn = document.getElementById("voiceBtn");
+        const overlay = document.getElementById("voiceRecordingBox");
+        const inp = document.getElementById("msgInput");
+
         if (!isRecording) {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1019,50 +1116,43 @@
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                 mediaRecorder.onstop = () => {
                     const blob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        sendCustomMedia('audio', reader.result);
-                    };
-                    reader.readAsDataURL(blob);
+                    const r = new FileReader();
+                    r.onload = () => sendCustomMedia('audio', r.result);
+                    r.readAsDataURL(blob);
                 };
                 mediaRecorder.start();
                 isRecording = true;
                 btn.classList.add("recording");
-                showToast("Идет запись...");
+                overlay.style.display = "flex";
+                inp.style.display = "none";
             } catch(e) {
-                showToast("Нет доступа к микрофону");
+                showToast("Микрофон недоступен!");
             }
         } else {
             mediaRecorder.stop();
             isRecording = false;
             btn.classList.remove("recording");
+            overlay.style.display = "none";
+            inp.style.display = "block";
         }
     }
 
     function handleFileUpload(e) {
         const file = e.target.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            sendCustomMedia('image', reader.result);
-        };
-        reader.readAsDataURL(file);
+        const r = new FileReader();
+        r.onload = () => sendCustomMedia('image', r.result);
+        r.readAsDataURL(file);
     }
 
     function sendCustomMedia(type, dataUrl) {
         if (!activeChat) return;
         const replyId = replyTarget ? replyTarget.id : 0;
-        if (activeChat.type === 'chat') {
-            ws.send(JSON.stringify({
-                action: "send_msg", to: activeChat.target, text: "", media_type: type,
-                media_data: dataUrl, is_spoiler: isSpoilerActive, reply_to_id: replyId
-            }));
-        } else if (activeChat.type === 'channel') {
-            ws.send(JSON.stringify({
-                action: "post_to_channel", channel_id: activeChat.id, text: "", media_type: type,
-                media_data: dataUrl, is_spoiler: isSpoilerActive
-            }));
-        }
+        ws.send(JSON.stringify({
+            action: activeChat.type === 'chat' ? "send_msg" : "post_to_channel",
+            to: activeChat.target, channel_id: activeChat.id, text: "", media_type: type,
+            media_data: dataUrl, is_spoiler: isSpoilerActive, reply_to_id: replyId
+        }));
         cancelReply();
         if (isSpoilerActive) toggleSpoilerState();
     }
@@ -1073,11 +1163,10 @@
         if (!val || !activeChat) return;
 
         const replyId = replyTarget ? replyTarget.id : 0;
-        if (activeChat.type === 'chat') {
-            ws.send(JSON.stringify({ action: "send_msg", to: activeChat.target, text: val, reply_to_id: replyId }));
-        } else if (activeChat.type === 'channel') {
-            ws.send(JSON.stringify({ action: "post_to_channel", channel_id: activeChat.id, text: val }));
-        }
+        ws.send(JSON.stringify({
+            action: activeChat.type === 'chat' ? "send_msg" : "post_to_channel",
+            to: activeChat.target, channel_id: activeChat.id, text: val, reply_to_id: replyId
+        }));
         inp.value = "";
         cancelReply();
     }
@@ -1115,7 +1204,7 @@
         const name = document.getElementById("newChanName").value.trim();
         const tag = document.getElementById("newChanTag").value.trim();
         const desc = document.getElementById("newChanDesc").value.trim();
-        if (!name || !tag) return showToast("Заполните имя и тег!");
+        if (!name || !tag) return showToast("Заполните поля!");
         ws.send(JSON.stringify({ action: "create_channel", name, tag, desc }));
     }
 
@@ -1129,11 +1218,7 @@
     function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
     function escapeJs(t) { return (t || '').replace(/'/g, "\\'").replace(/"/g, '\\"'); }
 
-    window.onload = () => {
-        const savedTheme = localStorage.getItem("mg_theme");
-        if (savedTheme) document.body.className = savedTheme;
-        initWS();
-    };
+    window.onload = initWS;
 </script>
 </body>
 </html>
