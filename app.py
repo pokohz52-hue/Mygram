@@ -2,6 +2,7 @@ import json
 import os
 import hashlib
 import secrets
+import asyncio
 import aiosqlite
 from aiohttp import web
 
@@ -16,6 +17,7 @@ def hash_password(password: str, salt: str = None) -> tuple[str, str]:
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
+        # Пользователи
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,42 +25,61 @@ async def init_db():
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
                 bio TEXT DEFAULT 'Пользуюсь MyGram ✨',
+                emoji_status TEXT DEFAULT '',
                 is_verified INTEGER DEFAULT 0,
                 is_admin INTEGER DEFAULT 0,
                 session_token TEXT UNIQUE
             )
         """)
+        # Сообщения (с поддержкой медиа, аудио, ответов и закрепов)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sender TEXT NOT NULL,
                 recipient TEXT NOT NULL,
                 text TEXT NOT NULL,
+                media_type TEXT DEFAULT 'text', -- 'text', 'image', 'audio'
+                media_data TEXT DEFAULT '',
+                reply_to_id INTEGER DEFAULT 0,
+                is_pinned INTEGER DEFAULT 0,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_read INTEGER DEFAULT 0
             )
         """)
+        # Реакции
         await db.execute("""
             CREATE TABLE IF NOT EXISTS reactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                target_type TEXT NOT NULL, -- 'msg' или 'post'
+                target_type TEXT NOT NULL,
                 target_id INTEGER NOT NULL,
                 username TEXT NOT NULL,
                 emoji TEXT NOT NULL,
                 UNIQUE(target_type, target_id, username)
             )
         """)
+        # Истории (Stories)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS stories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                media_data TEXT NOT NULL,
+                caption TEXT DEFAULT '',
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Каналы
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 tag TEXT UNIQUE NOT NULL,
                 description TEXT DEFAULT '',
-                avatar TEXT DEFAULT '',
                 owner TEXT NOT NULL,
-                is_verified INTEGER DEFAULT 0
+                is_verified INTEGER DEFAULT 0,
+                pinned_post_id INTEGER DEFAULT 0
             )
         """)
+        # Подписчики каналов
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_subscribers (
                 channel_id INTEGER,
@@ -66,12 +87,15 @@ async def init_db():
                 PRIMARY KEY (channel_id, username)
             )
         """)
+        # Посты каналов (с медиа)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 channel_id INTEGER,
                 sender TEXT NOT NULL,
                 text TEXT NOT NULL,
+                media_type TEXT DEFAULT 'text',
+                media_data TEXT DEFAULT '',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -93,7 +117,7 @@ async def index_handler(request):
     return web.FileResponse('index.html')
 
 async def ws_handler(request):
-    ws = web.WebSocketResponse(max_msg_size=15*1024*1024)
+    ws = web.WebSocketResponse(max_msg_size=50*1024*1024) # 50 МБ под фото и голосовые
     await ws.prepare(request)
     current_user = None
 
@@ -111,7 +135,7 @@ async def ws_handler(request):
 
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute(
-                            "SELECT username, is_verified, is_admin, bio FROM users WHERE session_token = ?",
+                            "SELECT username, is_verified, is_admin, bio, emoji_status FROM users WHERE session_token = ?",
                             (token,)
                         )
                         row = await cursor.fetchone()
@@ -124,9 +148,9 @@ async def ws_handler(request):
                                 "verified": bool(row[1]),
                                 "is_admin": bool(row[2]),
                                 "bio": row[3],
+                                "emoji_status": row[4],
                                 "token": token
                             }))
-                            # Рассылаем всем статус «онлайн»
                             status_payload = json.dumps({"action": "user_status", "username": current_user, "online": True})
                             for u, client in online_users.items():
                                 if u != current_user and not client.closed:
@@ -137,14 +161,13 @@ async def ws_handler(request):
                 elif action == "login":
                     username = data.get("identifier", "").strip().lower()
                     password = data.get("password", "")
-
                     if not username or not password:
                         await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните все поля"}))
                         continue
 
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute(
-                            "SELECT username, password_hash, password_salt, is_verified, is_admin, bio FROM users WHERE username = ?",
+                            "SELECT username, password_hash, password_salt, is_verified, is_admin, bio, emoji_status FROM users WHERE username = ?",
                             (username,)
                         )
                         row = await cursor.fetchone()
@@ -152,7 +175,7 @@ async def ws_handler(request):
                             await ws.send_str(json.dumps({"action": "auth_error", "msg": "Неверный логин или пароль"}))
                             continue
 
-                        uname, real_hash, salt, is_ver, is_adm, bio = row
+                        uname, real_hash, salt, is_ver, is_adm, bio, em_status = row
                         test_hash, _ = hash_password(password, salt)
                         if test_hash != real_hash:
                             await ws.send_str(json.dumps({"action": "auth_error", "msg": "Неверный логин или пароль"}))
@@ -170,17 +193,16 @@ async def ws_handler(request):
                         "verified": bool(is_ver),
                         "is_admin": bool(is_adm),
                         "bio": bio,
+                        "emoji_status": em_status,
                         "token": session_token
                     }))
 
                 elif action == "register":
                     username = data.get("username", "").strip().lower()
                     password = data.get("password", "")
-
                     if not username or not password:
-                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните логин и пароль"}))
+                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните поля"}))
                         continue
-
                     if len(password) < 6:
                         await ws.send_str(json.dumps({"action": "auth_error", "msg": "Пароль от 6 символов"}))
                         continue
@@ -188,7 +210,7 @@ async def ws_handler(request):
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("SELECT id FROM users WHERE username = ?", (username,))
                         if await cursor.fetchone():
-                            await ws.send_str(json.dumps({"action": "auth_error", "msg": "Никнейм уже занят"}))
+                            await ws.send_str(json.dumps({"action": "auth_error", "msg": "Никнейм занят"}))
                             continue
 
                         cursor = await db.execute("SELECT COUNT(*) FROM users")
@@ -199,8 +221,8 @@ async def ws_handler(request):
                         p_hash, p_salt = hash_password(password)
 
                         await db.execute("""
-                            INSERT INTO users (username, password_hash, password_salt, is_verified, is_admin, session_token)
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            INSERT INTO users (username, password_hash, password_salt, is_verified, is_admin, session_token, emoji_status)
+                            VALUES (?, ?, ?, ?, ?, ?, '⚡')
                         """, (username, p_hash, p_salt, is_ver, is_adm, session_token))
                         await db.commit()
 
@@ -212,20 +234,55 @@ async def ws_handler(request):
                         "verified": bool(is_ver),
                         "is_admin": bool(is_adm),
                         "bio": "Пользуюсь MyGram ✨",
+                        "emoji_status": "⚡",
                         "token": session_token
                     }))
 
+                elif action == "update_status" and current_user:
+                    new_status = data.get("status", "")[:4]
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        await db.execute("UPDATE users SET emoji_status = ? WHERE username = ?", (new_status, current_user))
+                        await db.commit()
+                    await ws.send_str(json.dumps({"action": "status_updated", "status": new_status}))
+
+                # Получение и публикация Историй (Stories)
+                elif action == "get_stories" and current_user:
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cursor = await db.execute("""
+                            SELECT s.id, s.username, s.media_data, s.caption, strftime('%H:%M', s.timestamp), u.emoji_status
+                            FROM stories s JOIN users u ON s.username = u.username
+                            WHERE s.timestamp >= datetime('now', '-1 day')
+                            ORDER BY s.id DESC
+                        """)
+                        rows = await cursor.fetchall()
+                        st_list = [{
+                            "id": r[0], "username": r[1], "media": r[2], "caption": r[3], "time": r[4], "status": r[5]
+                        } for r in rows]
+                    await ws.send_str(json.dumps({"action": "stories_list", "items": st_list}))
+
+                elif action == "add_story" and current_user:
+                    media = data.get("media", "")
+                    caption = data.get("caption", "").strip()
+                    if not media: continue
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        await db.execute("INSERT INTO stories (username, media_data, caption) VALUES (?, ?, ?)", (current_user, media, caption))
+                        await db.commit()
+                    bcast = json.dumps({"action": "new_story_alert"})
+                    for client in online_users.values():
+                        if not client.closed: await client.send_str(bcast)
+
+                # Поиск
                 elif action == "search" and current_user:
                     q = data.get("query", "").strip().lower().replace("@", "")
                     if not q: continue
                     search_pat = f"%{q}%"
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
-                            SELECT username, is_verified, bio FROM users 
+                            SELECT username, is_verified, bio, emoji_status FROM users 
                             WHERE username LIKE ? AND username != ? LIMIT 10
                         """, (search_pat, current_user))
                         found_users = [{
-                            "username": r[0], "verified": bool(r[1]), "bio": r[2], "online": r[0] in online_users
+                            "username": r[0], "verified": bool(r[1]), "bio": r[2], "status": r[3], "online": r[0] in online_users
                         } for r in await cursor.fetchall()]
 
                         cursor = await db.execute("""
@@ -250,12 +307,11 @@ async def ws_handler(request):
                         peers = [r[0] for r in await cursor.fetchall()]
                         chats = []
                         for p in peers:
-                            p_cur = await db.execute("SELECT username, is_verified, bio FROM users WHERE username = ?", (p,))
+                            p_cur = await db.execute("SELECT username, is_verified, bio, emoji_status FROM users WHERE username = ?", (p,))
                             p_row = await p_cur.fetchone()
                             if p_row:
-                                # Последнее сообщение и счётчик непрочитанных
                                 last_msg_cur = await db.execute("""
-                                    SELECT text, strftime('%H:%M', timestamp), sender, is_read 
+                                    SELECT text, media_type, strftime('%H:%M', timestamp)
                                     FROM messages WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)
                                     ORDER BY id DESC LIMIT 1
                                 """, (current_user, p, p, current_user))
@@ -263,11 +319,17 @@ async def ws_handler(request):
                                 unread_cur = await db.execute("SELECT COUNT(*) FROM messages WHERE sender = ? AND recipient = ? AND is_read = 0", (p, current_user))
                                 unread_count = (await unread_cur.fetchone())[0]
 
+                                last_preview = ""
+                                if last_row:
+                                    if last_row[1] == 'image': last_preview = '📷 Фотография'
+                                    elif last_row[1] == 'audio': last_preview = '🎤 Голосовое сообщение'
+                                    else: last_preview = last_row[0]
+
                                 chats.append({
-                                    "username": p_row[0], "verified": bool(p_row[1]), "bio": p_row[2],
+                                    "username": p_row[0], "verified": bool(p_row[1]), "bio": p_row[2], "status": p_row[3],
                                     "online": p_row[0] in online_users,
-                                    "last_text": last_row[0] if last_row else "",
-                                    "last_time": last_row[1] if last_row else "",
+                                    "last_text": last_preview,
+                                    "last_time": last_row[2] if last_row else "",
                                     "unread": unread_count
                                 })
                     await ws.send_str(json.dumps({"action": "chat_list", "items": chats}))
@@ -278,46 +340,86 @@ async def ws_handler(request):
                         await db.execute("UPDATE messages SET is_read = 1 WHERE sender = ? AND recipient = ?", (target, current_user))
                         await db.commit()
                         cursor = await db.execute("""
-                            SELECT id, sender, recipient, text, strftime('%H:%M', timestamp), is_read 
-                            FROM messages WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)
-                            ORDER BY id ASC
+                            SELECT m.id, m.sender, m.recipient, m.text, m.media_type, m.media_data, 
+                                   m.reply_to_id, m.is_pinned, strftime('%H:%M', m.timestamp), m.is_read,
+                                   rm.sender, rm.text
+                            FROM messages m
+                            LEFT JOIN messages rm ON m.reply_to_id = rm.id
+                            WHERE (m.sender = ? AND m.recipient = ?) OR (m.sender = ? AND m.recipient = ?)
+                            ORDER BY m.id ASC
                         """, (current_user, target, target, current_user))
                         rows = await cursor.fetchall()
                         history = []
+                        pinned_msg = None
                         for r in rows:
                             reacts = await get_reactions(db, "msg", r[0])
-                            history.append({
+                            item = {
                                 "id": r[0], "sender": r[1], "recipient": r[2], "text": r[3],
-                                "time": r[4] or "12:00", "is_read": bool(r[5]), "reactions": reacts
-                            })
+                                "media_type": r[4], "media_data": r[5], "reply_to_id": r[6],
+                                "is_pinned": bool(r[7]), "time": r[8] or "12:00", "is_read": bool(r[9]),
+                                "reply_user": r[10], "reply_text": r[11], "reactions": reacts
+                            }
+                            if r[7]: pinned_msg = item
+                            history.append(item)
 
-                    # Оповещаем собеседника о прочтении его сообщений
                     if target in online_users:
                         await online_users[target].send_str(json.dumps({"action": "messages_read", "by": current_user}))
 
                     await ws.send_str(json.dumps({
-                        "action": "history", "with": target, "items": history, "online": target in online_users
+                        "action": "history", "with": target, "items": history, "pinned": pinned_msg, "online": target in online_users
                     }))
 
                 elif action == "send_msg" and current_user:
                     target = data.get("to", "").strip().lower()
                     text = data.get("text", "").strip()
-                    if not text or not target: continue
+                    media_type = data.get("media_type", "text")
+                    media_data = data.get("media_data", "")
+                    reply_id = int(data.get("reply_to_id", 0))
 
+                    if not text and not media_data: continue
+
+                    reply_user, reply_text = None, None
                     async with aiosqlite.connect(DB_NAME) as db:
-                        cursor = await db.execute("INSERT INTO messages (sender, recipient, text, is_read) VALUES (?, ?, ?, 0)", (current_user, target, text))
+                        if reply_id > 0:
+                            r_cur = await db.execute("SELECT sender, text FROM messages WHERE id = ?", (reply_id,))
+                            r_row = await r_cur.fetchone()
+                            if r_row: reply_user, reply_text = r_row[0], r_row[1]
+
+                        cursor = await db.execute("""
+                            INSERT INTO messages (sender, recipient, text, media_type, media_data, reply_to_id, is_read) 
+                            VALUES (?, ?, ?, ?, ?, ?, 0)
+                        """, (current_user, target, text, media_type, media_data, reply_id))
                         await db.commit()
                         msg_id = cursor.lastrowid
                         cursor = await db.execute("SELECT strftime('%H:%M', timestamp) FROM messages WHERE id = ?", (msg_id,))
                         msg_time = (await cursor.fetchone())[0]
 
                     payload = {
-                        "action": "new_msg", "id": msg_id, "sender": current_user,
-                        "recipient": target, "text": text, "time": msg_time, "is_read": False, "reactions": []
+                        "action": "new_msg", "id": msg_id, "sender": current_user, "recipient": target,
+                        "text": text, "media_type": media_type, "media_data": media_data,
+                        "reply_to_id": reply_id, "reply_user": reply_user, "reply_text": reply_text,
+                        "time": msg_time, "is_read": False, "reactions": []
                     }
                     if target in online_users:
                         await online_users[target].send_str(json.dumps(payload))
                     await ws.send_str(json.dumps(payload))
+
+                elif action == "pin_msg" and current_user:
+                    msg_id = data.get("id")
+                    target = data.get("with", "").strip().lower()
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        await db.execute("""
+                            UPDATE messages SET is_pinned = 0 
+                            WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)
+                        """, (current_user, target, target, current_user))
+                        await db.execute("UPDATE messages SET is_pinned = 1 WHERE id = ?", (msg_id,))
+                        await db.commit()
+                        cur = await db.execute("SELECT sender, text FROM messages WHERE id = ?", (msg_id,))
+                        r = await cur.fetchone()
+
+                    pin_data = json.dumps({"action": "pinned_update", "id": msg_id, "sender": r[0], "text": r[1]})
+                    await ws.send_str(pin_data)
+                    if target in online_users: await online_users[target].send_str(pin_data)
 
                 elif action == "typing" and current_user:
                     target = data.get("to", "").strip().lower()
@@ -325,7 +427,7 @@ async def ws_handler(request):
                         await online_users[target].send_str(json.dumps({"action": "user_typing", "from": current_user}))
 
                 elif action == "react" and current_user:
-                    target_type = data.get("type") # 'msg' или 'post'
+                    target_type = data.get("type")
                     target_id = data.get("id")
                     emoji = data.get("emoji")
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -354,6 +456,7 @@ async def ws_handler(request):
                             if row[0] in online_users: await online_users[row[0]].send_str(del_payload)
                             if row[1] in online_users: await online_users[row[1]].send_str(del_payload)
 
+                # Каналы
                 elif action == "get_channels" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
@@ -408,23 +511,26 @@ async def ws_handler(request):
                 elif action == "get_channel_posts" and current_user:
                     ch_id = data.get("channel_id")
                     async with aiosqlite.connect(DB_NAME) as db:
-                        cur = await db.execute("SELECT id, sender, text, strftime('%H:%M', timestamp) FROM channel_posts WHERE channel_id = ? ORDER BY id ASC", (ch_id,))
+                        cur = await db.execute("SELECT id, sender, text, media_type, media_data, strftime('%H:%M', timestamp) FROM channel_posts WHERE channel_id = ? ORDER BY id ASC", (ch_id,))
                         rows = await cur.fetchall()
                         posts = []
                         for r in rows:
                             reacts = await get_reactions(db, "post", r[0])
-                            posts.append({"id": r[0], "sender": r[1], "text": r[2], "time": r[3], "reactions": reacts})
+                            posts.append({"id": r[0], "sender": r[1], "text": r[2], "media_type": r[3], "media_data": r[4], "time": r[5], "reactions": reacts})
                     await ws.send_str(json.dumps({"action": "channel_history", "channel_id": ch_id, "items": posts}))
 
                 elif action == "post_to_channel" and current_user:
                     ch_id = data.get("channel_id")
                     text = data.get("text", "").strip()
-                    if not text: continue
+                    media_type = data.get("media_type", "text")
+                    media_data = data.get("media_data", "")
+                    if not text and not media_data: continue
+
                     async with aiosqlite.connect(DB_NAME) as db:
                         cur = await db.execute("SELECT owner FROM channels WHERE id = ?", (ch_id,))
                         row = await cur.fetchone()
                         if not row or row[0] != current_user: continue
-                        cur = await db.execute("INSERT INTO channel_posts (channel_id, sender, text) VALUES (?, ?, ?)", (ch_id, current_user, text))
+                        cur = await db.execute("INSERT INTO channel_posts (channel_id, sender, text, media_type, media_data) VALUES (?, ?, ?, ?, ?)", (ch_id, current_user, text, media_type, media_data))
                         await db.commit()
                         p_id = cur.lastrowid
                         cur = await db.execute("SELECT strftime('%H:%M', timestamp) FROM channel_posts WHERE id = ?", (p_id,))
@@ -432,7 +538,7 @@ async def ws_handler(request):
                         cur = await db.execute("SELECT username FROM channel_subscribers WHERE channel_id = ?", (ch_id,))
                         subscribers = [r[0] for r in await cur.fetchall()]
 
-                    payload = json.dumps({"action": "new_post", "channel_id": ch_id, "id": p_id, "sender": current_user, "text": text, "time": p_time, "reactions": []})
+                    payload = json.dumps({"action": "new_post", "channel_id": ch_id, "id": p_id, "sender": current_user, "text": text, "media_type": media_type, "media_data": media_data, "time": p_time, "reactions": []})
                     for s in subscribers:
                         if s in online_users: await online_users[s].send_str(payload)
 
@@ -446,13 +552,12 @@ async def ws_handler(request):
 
 async def make_app():
     await init_db()
-    app = web.Application(client_max_size=15*1024*1024)
+    app = web.Application(client_max_size=50*1024*1024)
     app.router.add_get('/', index_handler)
     app.router.add_get('/ws', ws_handler)
     return app
 
 if __name__ == '__main__':
-    import asyncio
     port = int(os.environ.get("PORT", 8000))
-    print(f"💎 MyGram Turbo запущен: http://127.0.0.1:{port}")
+    print(f"💎 MyGram MAX запущен: http://127.0.0.1:{port}")
     web.run_app(make_app(), host='0.0.0.0', port=port)
