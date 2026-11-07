@@ -18,7 +18,7 @@ online_users = {}
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "lol52alo228@gmail.com")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "pkko zadh wncd qltr")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "pkkozadhwncdqltr")
 
 def hash_password(password: str, salt: str = None) -> tuple[str, str]:
     """Хэширование пароля алгоритмом SHA-256 с солью."""
