@@ -7,7 +7,7 @@ import aiosqlite
 from aiohttp import web
 
 DB_NAME = "tg_database.db"
-online_users = {}  # {username: ws}
+online_users = {}
 
 def hash_password(password: str, salt: str = None) -> tuple[str, str]:
     if not salt:
@@ -17,39 +17,51 @@ def hash_password(password: str, salt: str = None) -> tuple[str, str]:
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
-        # Включение режима WAL для многопоточной скорости SQLite
         await db.execute("PRAGMA journal_mode = WAL")
         await db.execute("PRAGMA synchronous = NORMAL")
 
-        # Пользователи
+        # Пользователи (с балансом Stars / TON)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
-                bio TEXT DEFAULT 'Пользуюсь MyGram ✨',
-                emoji_status TEXT DEFAULT '',
+                bio TEXT DEFAULT 'Cyberspace traveler ⚡',
+                emoji_status TEXT DEFAULT '🚀',
+                stars_balance INTEGER DEFAULT 150,
+                ton_balance REAL DEFAULT 2.5,
                 is_verified INTEGER DEFAULT 0,
                 is_admin INTEGER DEFAULT 0,
                 session_token TEXT UNIQUE
             )
         """)
-        # Сообщения
+        # Сообщения (с поддержкой опросов)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sender TEXT NOT NULL,
                 recipient TEXT NOT NULL,
                 text TEXT NOT NULL,
-                media_type TEXT DEFAULT 'text',
+                media_type TEXT DEFAULT 'text', -- 'text', 'image', 'audio', 'poll'
                 media_data TEXT DEFAULT '',
+                poll_data TEXT DEFAULT '',
                 is_spoiler INTEGER DEFAULT 0,
                 reply_to_id INTEGER DEFAULT 0,
                 forward_from TEXT DEFAULT '',
                 is_pinned INTEGER DEFAULT 0,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_read INTEGER DEFAULT 0
+            )
+        """)
+        # Голоса в опросах
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS poll_votes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id INTEGER NOT NULL,
+                username TEXT NOT NULL,
+                option_index INTEGER NOT NULL,
+                UNIQUE(message_id, username)
             )
         """)
         # Реакции
@@ -84,7 +96,7 @@ async def init_db():
                 is_verified INTEGER DEFAULT 0
             )
         """)
-        # Подписчики каналов
+        # Подписчики
         await db.execute("""
             CREATE TABLE IF NOT EXISTS channel_subscribers (
                 channel_id INTEGER,
@@ -101,13 +113,13 @@ async def init_db():
                 text TEXT NOT NULL,
                 media_type TEXT DEFAULT 'text',
                 media_data TEXT DEFAULT '',
+                poll_data TEXT DEFAULT '',
                 is_spoiler INTEGER DEFAULT 0,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         await db.commit()
 
-# Автоматический фоновый процесс очистки старых историй (раз в 30 минут)
 async def auto_cleaner_task():
     while True:
         try:
@@ -117,8 +129,13 @@ async def auto_cleaner_task():
                 await db.commit()
         except asyncio.CancelledError:
             break
-        except Exception as e:
-            print(f"[AutoCleaner Error]: {e}")
+        except Exception:
+            pass
+
+async def get_poll_results(db, msg_id):
+    cursor = await db.execute("SELECT option_index, COUNT(*) FROM poll_votes WHERE message_id = ? GROUP BY option_index", (msg_id,))
+    rows = await cursor.fetchall()
+    return {r[0]: r[1] for r in rows}
 
 async def get_reactions(db, target_type, target_id):
     cursor = await db.execute("""
@@ -136,7 +153,7 @@ async def index_handler(request):
     return web.FileResponse('index.html')
 
 async def ws_handler(request):
-    ws = web.WebSocketResponse(max_msg_size=60*1024*1024)
+    ws = web.WebSocketResponse(max_msg_size=70*1024*1024)
     await ws.prepare(request)
     current_user = None
 
@@ -154,7 +171,7 @@ async def ws_handler(request):
 
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute(
-                            "SELECT username, is_verified, is_admin, bio, emoji_status FROM users WHERE session_token = ?",
+                            "SELECT username, is_verified, is_admin, bio, emoji_status, stars_balance, ton_balance FROM users WHERE session_token = ?",
                             (token,)
                         )
                         row = await cursor.fetchone()
@@ -162,18 +179,13 @@ async def ws_handler(request):
                             current_user = row[0]
                             online_users[current_user] = ws
                             await ws.send_str(json.dumps({
-                                "action": "auth_success",
-                                "username": row[0],
-                                "verified": bool(row[1]),
-                                "is_admin": bool(row[2]),
-                                "bio": row[3],
-                                "emoji_status": row[4],
-                                "token": token
+                                "action": "auth_success", "username": row[0], "verified": bool(row[1]),
+                                "is_admin": bool(row[2]), "bio": row[3], "emoji_status": row[4],
+                                "stars": row[5], "ton": row[6], "token": token
                             }))
-                            status_payload = json.dumps({"action": "user_status", "username": current_user, "online": True})
-                            for u, client in online_users.items():
-                                if u != current_user and not client.closed:
-                                    await client.send_str(status_payload)
+                            bcast = json.dumps({"action": "user_status", "username": current_user, "online": True})
+                            for u, c in online_users.items():
+                                if u != current_user and not c.closed: await c.send_str(bcast)
                         else:
                             await ws.send_str(json.dumps({"action": "require_login"}))
 
@@ -186,7 +198,7 @@ async def ws_handler(request):
 
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute(
-                            "SELECT username, password_hash, password_salt, is_verified, is_admin, bio, emoji_status FROM users WHERE username = ?",
+                            "SELECT username, password_hash, password_salt, is_verified, is_admin, bio, emoji_status, stars_balance, ton_balance FROM users WHERE username = ?",
                             (username,)
                         )
                         row = await cursor.fetchone()
@@ -194,7 +206,7 @@ async def ws_handler(request):
                             await ws.send_str(json.dumps({"action": "auth_error", "msg": "Неверный логин или пароль"}))
                             continue
 
-                        uname, real_hash, salt, is_ver, is_adm, bio, em_status = row
+                        uname, real_hash, salt, is_ver, is_adm, bio, em_status, stars, ton = row
                         test_hash, _ = hash_password(password, salt)
                         if test_hash != real_hash:
                             await ws.send_str(json.dumps({"action": "auth_error", "msg": "Неверный логин или пароль"}))
@@ -207,23 +219,16 @@ async def ws_handler(request):
                     current_user = uname
                     online_users[current_user] = ws
                     await ws.send_str(json.dumps({
-                        "action": "auth_success",
-                        "username": uname,
-                        "verified": bool(is_ver),
-                        "is_admin": bool(is_adm),
-                        "bio": bio,
-                        "emoji_status": em_status,
-                        "token": session_token
+                        "action": "auth_success", "username": uname, "verified": bool(is_ver),
+                        "is_admin": bool(is_adm), "bio": bio, "emoji_status": em_status,
+                        "stars": stars, "ton": ton, "token": session_token
                     }))
 
                 elif action == "register":
                     username = data.get("username", "").strip().lower()
                     password = data.get("password", "")
-                    if not username or not password:
-                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Заполните поля"}))
-                        continue
-                    if len(password) < 6:
-                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Пароль от 6 символов"}))
+                    if not username or not password or len(password) < 6:
+                        await ws.send_str(json.dumps({"action": "auth_error", "msg": "Логин и пароль от 6 знаков"}))
                         continue
 
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -240,80 +245,18 @@ async def ws_handler(request):
                         p_hash, p_salt = hash_password(password)
 
                         await db.execute("""
-                            INSERT INTO users (username, password_hash, password_salt, is_verified, is_admin, session_token, emoji_status)
-                            VALUES (?, ?, ?, ?, ?, ?, '⚡')
+                            INSERT INTO users (username, password_hash, password_salt, is_verified, is_admin, session_token, emoji_status, stars_balance, ton_balance)
+                            VALUES (?, ?, ?, ?, ?, ?, '🚀', 250, 5.0)
                         """, (username, p_hash, p_salt, is_ver, is_adm, session_token))
                         await db.commit()
 
                     current_user = username
                     online_users[current_user] = ws
                     await ws.send_str(json.dumps({
-                        "action": "auth_success",
-                        "username": username,
-                        "verified": bool(is_ver),
-                        "is_admin": bool(is_adm),
-                        "bio": "Пользуюсь MyGram ✨",
-                        "emoji_status": "⚡",
-                        "token": session_token
+                        "action": "auth_success", "username": username, "verified": bool(is_ver),
+                        "is_admin": bool(is_adm), "bio": "Cyberspace traveler ⚡", "emoji_status": "🚀",
+                        "stars": 250, "ton": 5.0, "token": session_token
                     }))
-
-                elif action == "update_status" and current_user:
-                    new_status = data.get("status", "")[:4]
-                    async with aiosqlite.connect(DB_NAME) as db:
-                        await db.execute("UPDATE users SET emoji_status = ? WHERE username = ?", (new_status, current_user))
-                        await db.commit()
-                    await ws.send_str(json.dumps({"action": "status_updated", "status": new_status}))
-
-                elif action == "get_stories" and current_user:
-                    async with aiosqlite.connect(DB_NAME) as db:
-                        cursor = await db.execute("""
-                            SELECT s.id, s.username, s.media_data, s.caption, strftime('%H:%M', s.timestamp), u.emoji_status
-                            FROM stories s JOIN users u ON s.username = u.username
-                            WHERE s.timestamp >= datetime('now', '-1 day')
-                            ORDER BY s.id DESC
-                        """)
-                        rows = await cursor.fetchall()
-                        st_list = [{
-                            "id": r[0], "username": r[1], "media": r[2], "caption": r[3], "time": r[4], "status": r[5]
-                        } for r in rows]
-                    await ws.send_str(json.dumps({"action": "stories_list", "items": st_list}))
-
-                elif action == "add_story" and current_user:
-                    media = data.get("media", "")
-                    caption = data.get("caption", "").strip()
-                    if not media: continue
-                    async with aiosqlite.connect(DB_NAME) as db:
-                        await db.execute("INSERT INTO stories (username, media_data, caption) VALUES (?, ?, ?)", (current_user, media, caption))
-                        await db.commit()
-                    bcast = json.dumps({"action": "new_story_alert"})
-                    for client in online_users.values():
-                        if not client.closed: await client.send_str(bcast)
-
-                elif action == "search" and current_user:
-                    q = data.get("query", "").strip().lower().replace("@", "")
-                    if not q: continue
-                    search_pat = f"%{q}%"
-                    async with aiosqlite.connect(DB_NAME) as db:
-                        cursor = await db.execute("""
-                            SELECT username, is_verified, bio, emoji_status FROM users 
-                            WHERE username LIKE ? AND username != ? LIMIT 10
-                        """, (search_pat, current_user))
-                        found_users = [{
-                            "username": r[0], "verified": bool(r[1]), "bio": r[2], "status": r[3], "online": r[0] in online_users
-                        } for r in await cursor.fetchall()]
-
-                        cursor = await db.execute("""
-                            SELECT c.id, c.name, c.tag, c.description, c.owner, c.is_verified,
-                            (SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = c.id) as subs_count,
-                            EXISTS(SELECT 1 FROM channel_subscribers WHERE channel_id = c.id AND username = ?) as is_sub
-                            FROM channels c WHERE c.tag LIKE ? OR c.name LIKE ? LIMIT 10
-                        """, (current_user, search_pat, search_pat))
-                        found_channels = [{
-                            "id": r[0], "name": r[1], "tag": r[2], "desc": r[3], "owner": r[4],
-                            "verified": bool(r[5]), "subs": r[6], "is_sub": bool(r[7])
-                        } for r in await cursor.fetchall()]
-
-                    await ws.send_str(json.dumps({"action": "search_results", "users": found_users, "channels": found_channels}))
 
                 elif action == "get_chats" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -338,16 +281,15 @@ async def ws_handler(request):
 
                                 last_preview = ""
                                 if last_row:
-                                    if last_row[1] == 'image': last_preview = '📷 Фотография'
-                                    elif last_row[1] == 'audio': last_preview = '🎤 Голосовое сообщение'
+                                    if last_row[1] == 'image': last_preview = '📷 Изображение'
+                                    elif last_row[1] == 'audio': last_preview = '🎤 Голосовое'
+                                    elif last_row[1] == 'poll': last_preview = '📊 Опрос'
                                     else: last_preview = last_row[0]
 
                                 chats.append({
                                     "username": p_row[0], "verified": bool(p_row[1]), "bio": p_row[2], "status": p_row[3],
-                                    "online": p_row[0] in online_users,
-                                    "last_text": last_preview,
-                                    "last_time": last_row[2] if last_row else "",
-                                    "unread": unread_count
+                                    "online": p_row[0] in online_users, "last_text": last_preview,
+                                    "last_time": last_row[2] if last_row else "", "unread": unread_count
                                 })
                     await ws.send_str(json.dumps({"action": "chat_list", "items": chats}))
 
@@ -357,10 +299,9 @@ async def ws_handler(request):
                         await db.execute("UPDATE messages SET is_read = 1 WHERE sender = ? AND recipient = ?", (target, current_user))
                         await db.commit()
                         cursor = await db.execute("""
-                            SELECT m.id, m.sender, m.recipient, m.text, m.media_type, m.media_data, 
+                            SELECT m.id, m.sender, m.recipient, m.text, m.media_type, m.media_data, m.poll_data,
                                    m.reply_to_id, m.is_pinned, m.is_spoiler, m.forward_from,
-                                   strftime('%H:%M', m.timestamp), m.is_read,
-                                   rm.sender, rm.text
+                                   strftime('%H:%M', m.timestamp), m.is_read, rm.sender, rm.text
                             FROM messages m
                             LEFT JOIN messages rm ON m.reply_to_id = rm.id
                             WHERE (m.sender = ? AND m.recipient = ?) OR (m.sender = ? AND m.recipient = ?)
@@ -371,14 +312,15 @@ async def ws_handler(request):
                         pinned_msg = None
                         for r in rows:
                             reacts = await get_reactions(db, "msg", r[0])
+                            poll_res = await get_poll_results(db, r[0]) if r[4] == 'poll' else {}
                             item = {
                                 "id": r[0], "sender": r[1], "recipient": r[2], "text": r[3],
-                                "media_type": r[4], "media_data": r[5], "reply_to_id": r[6],
-                                "is_pinned": bool(r[7]), "is_spoiler": bool(r[8]), "forward_from": r[9],
-                                "time": r[10] or "12:00", "is_read": bool(r[11]),
-                                "reply_user": r[12], "reply_text": r[13], "reactions": reacts
+                                "media_type": r[4], "media_data": r[5], "poll_data": json.loads(r[6]) if r[6] else None,
+                                "poll_results": poll_res, "reply_to_id": r[7], "is_pinned": bool(r[8]),
+                                "is_spoiler": bool(r[9]), "forward_from": r[10], "time": r[11] or "12:00",
+                                "is_read": bool(r[12]), "reply_user": r[13], "reply_text": r[14], "reactions": reacts
                             }
-                            if r[7]: pinned_msg = item
+                            if r[8]: pinned_msg = item
                             history.append(item)
 
                     if target in online_users:
@@ -393,11 +335,12 @@ async def ws_handler(request):
                     text = data.get("text", "").strip()
                     media_type = data.get("media_type", "text")
                     media_data = data.get("media_data", "")
+                    poll_data = json.dumps(data.get("poll_data")) if data.get("poll_data") else ""
                     reply_id = int(data.get("reply_to_id", 0))
                     is_spoiler = 1 if data.get("is_spoiler") else 0
                     forward_from = data.get("forward_from", "")
 
-                    if not text and not media_data: continue
+                    if not text and not media_data and not poll_data: continue
 
                     reply_user, reply_text = None, None
                     async with aiosqlite.connect(DB_NAME) as db:
@@ -407,9 +350,9 @@ async def ws_handler(request):
                             if r_row: reply_user, reply_text = r_row[0], r_row[1]
 
                         cursor = await db.execute("""
-                            INSERT INTO messages (sender, recipient, text, media_type, media_data, reply_to_id, is_spoiler, forward_from, is_read) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-                        """, (current_user, target, text, media_type, media_data, reply_id, is_spoiler, forward_from))
+                            INSERT INTO messages (sender, recipient, text, media_type, media_data, poll_data, reply_to_id, is_spoiler, forward_from, is_read) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                        """, (current_user, target, text, media_type, media_data, poll_data, reply_id, is_spoiler, forward_from))
                         await db.commit()
                         msg_id = cursor.lastrowid
                         cursor = await db.execute("SELECT strftime('%H:%M', timestamp) FROM messages WHERE id = ?", (msg_id,))
@@ -417,7 +360,8 @@ async def ws_handler(request):
 
                     payload = {
                         "action": "new_msg", "id": msg_id, "sender": current_user, "recipient": target,
-                        "text": text, "media_type": media_type, "media_data": media_data, "is_spoiler": bool(is_spoiler),
+                        "text": text, "media_type": media_type, "media_data": media_data,
+                        "poll_data": data.get("poll_data"), "poll_results": {}, "is_spoiler": bool(is_spoiler),
                         "forward_from": forward_from, "reply_to_id": reply_id, "reply_user": reply_user,
                         "reply_text": reply_text, "time": msg_time, "is_read": False, "reactions": []
                     }
@@ -425,33 +369,59 @@ async def ws_handler(request):
                         await online_users[target].send_str(json.dumps(payload))
                     await ws.send_str(json.dumps(payload))
 
-                    # Автоматический Smart AI Bot (@ai)
+                    # AI-Bot Auto-Reply
                     if text.startswith("@ai"):
                         prompt = text.replace("@ai", "").strip()
-                        ai_resp = f"🤖 [AI-Assistant]: Запрос принят! «{prompt}». Всё работает в реальном времени!" if prompt else "🤖 [AI-Assistant]: Чем могу помочь?"
-                        await asyncio.sleep(0.5)
+                        ai_resp = f"🤖 [Neural-AI]: Исполняю «{prompt}» на квантовой скорости!" if prompt else "🤖 [Neural-AI]: Системы в норме. Чем помочь?"
+                        await asyncio.sleep(0.4)
                         async with aiosqlite.connect(DB_NAME) as db:
-                            c = await db.execute("""
-                                INSERT INTO messages (sender, recipient, text, is_read) VALUES ('AI Assistant', ?, ?, 1)
-                            """, (current_user, ai_resp))
+                            c = await db.execute("INSERT INTO messages (sender, recipient, text, is_read) VALUES ('AI Assistant', ?, ?, 1)", (current_user, ai_resp))
                             await db.commit()
                             ai_id = c.lastrowid
-                        ai_payload = json.dumps({
+                        await ws.send_str(json.dumps({
                             "action": "new_msg", "id": ai_id, "sender": "AI Assistant", "recipient": current_user,
                             "text": ai_resp, "media_type": "text", "media_data": "", "is_spoiler": False,
                             "forward_from": "", "reply_to_id": msg_id, "reply_user": current_user,
                             "reply_text": text, "time": "сейчас", "is_read": True, "reactions": []
-                        })
-                        await ws.send_str(ai_payload)
+                        }))
+
+                elif action == "vote_poll" and current_user:
+                    msg_id = data.get("id")
+                    opt_idx = data.get("option_index")
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        await db.execute("INSERT OR REPLACE INTO poll_votes (message_id, username, option_index) VALUES (?, ?, ?)", (msg_id, current_user, opt_idx))
+                        await db.commit()
+                        res = await get_poll_results(db, msg_id)
+
+                    bcast = json.dumps({"action": "poll_update", "id": msg_id, "results": res})
+                    for c in online_users.values():
+                        if not c.closed: await c.send_str(bcast)
+
+                elif action == "transfer_stars" and current_user:
+                    target = data.get("to", "").strip().lower()
+                    amount = int(data.get("amount", 0))
+                    if amount <= 0: continue
+
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cur = await db.execute("SELECT stars_balance FROM users WHERE username = ?", (current_user,))
+                        my_bal = (await cur.fetchone())[0]
+                        if my_bal < amount:
+                            await ws.send_str(json.dumps({"action": "toast", "msg": "Недостаточно Stars ⭐️"}))
+                            continue
+
+                        await db.execute("UPDATE users SET stars_balance = stars_balance - ? WHERE username = ?", (amount, current_user))
+                        await db.execute("UPDATE users SET stars_balance = stars_balance + ? WHERE username = ?", (amount, target))
+                        await db.commit()
+
+                    await ws.send_str(json.dumps({"action": "balance_update", "stars": my_bal - amount}))
+                    if target in online_users:
+                        await online_users[target].send_str(json.dumps({"action": "toast", "msg": f"Вам начислено {amount} ⭐️ от @{current_user}!"}))
 
                 elif action == "pin_msg" and current_user:
                     msg_id = data.get("id")
                     target = data.get("with", "").strip().lower()
                     async with aiosqlite.connect(DB_NAME) as db:
-                        await db.execute("""
-                            UPDATE messages SET is_pinned = 0 
-                            WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)
-                        """, (current_user, target, target, current_user))
+                        await db.execute("UPDATE messages SET is_pinned = 0 WHERE (sender = ? AND recipient = ?) OR (sender = ? AND recipient = ?)", (current_user, target, target, current_user))
                         await db.execute("UPDATE messages SET is_pinned = 1 WHERE id = ?", (msg_id,))
                         await db.commit()
                         cur = await db.execute("SELECT sender, text FROM messages WHERE id = ?", (msg_id,))
@@ -603,12 +573,12 @@ async def ws_handler(request):
 async def make_app():
     await init_db()
     asyncio.create_task(auto_cleaner_task())
-    app = web.Application(client_max_size=60*1024*1024)
+    app = web.Application(client_max_size=70*1024*1024)
     app.router.add_get('/', index_handler)
     app.router.add_get('/ws', ws_handler)
     return app
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8000))
-    print(f"💎 MyGram Ultra запущен: http://127.0.0.1:{port}")
+    print(f"🚀 MyGram Neural-Cyber запущен: http://127.0.0.1:{port}")
     web.run_app(make_app(), host='0.0.0.0', port=port)
