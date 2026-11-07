@@ -8,6 +8,7 @@ online_users = {}
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
+        # Таблица пользователей
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,6 +19,7 @@ async def init_db():
                 is_admin INTEGER DEFAULT 0
             )
         """)
+        # Таблица личных сообщений
         await db.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,6 +28,35 @@ async def init_db():
                 text TEXT NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 is_read INTEGER DEFAULT 0
+            )
+        """)
+        # Таблица каналов
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS channels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                tag TEXT UNIQUE NOT NULL,
+                description TEXT DEFAULT '',
+                avatar TEXT DEFAULT '',
+                owner TEXT NOT NULL
+            )
+        """)
+        # Подписчики каналов
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS channel_subscribers (
+                channel_id INTEGER,
+                username TEXT,
+                PRIMARY KEY (channel_id, username)
+            )
+        """)
+        # Посты в каналах
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS channel_posts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id INTEGER,
+                sender TEXT NOT NULL,
+                text TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
         await db.commit()
@@ -44,10 +75,10 @@ async def ws_handler(request):
                 data = json.loads(msg.data)
                 action = data.get("action")
 
+                # --- АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ ---
                 if action == "device_init":
                     device_id = data.get("device_id", "").strip()
                     if not device_id: continue
-                    
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("SELECT username, avatar, is_verified, is_admin FROM users WHERE device_id = ?", (device_id,))
                         row = await cursor.fetchone()
@@ -64,10 +95,7 @@ async def ws_handler(request):
                         else:
                             cursor = await db.execute("SELECT COUNT(*) FROM users")
                             count = (await cursor.fetchone())[0]
-                            await ws.send_str(json.dumps({
-                                "action": "auth_need_reg",
-                                "is_first": (count == 0)
-                            }))
+                            await ws.send_str(json.dumps({"action": "auth_need_reg", "is_first": (count == 0)}))
 
                 elif action == "device_register":
                     device_id = data.get("device_id", "").strip()
@@ -101,47 +129,104 @@ async def ws_handler(request):
                             "is_admin": bool(is_admin_flag)
                         }))
 
-                elif action == "admin_get_users" and current_user:
+                # --- ЛОГИКА КАНАЛОВ ---
+                elif action == "create_channel" and current_user:
+                    name = data.get("name", "").strip()
+                    tag = data.get("tag", "").strip().lower().replace("@", "")
+                    desc = data.get("desc", "").strip()
+                    avatar = data.get("avatar", "")
+
+                    if not name or not tag:
+                        await ws.send_str(json.dumps({"action": "toast", "msg": "Укажите имя и тег канала!"}))
+                        continue
+
                     async with aiosqlite.connect(DB_NAME) as db:
-                        cursor = await db.execute("SELECT is_admin FROM users WHERE username = ?", (current_user,))
-                        adm = await cursor.fetchone()
-                        if adm and adm[0] == 1:
-                            cursor = await db.execute("SELECT id, username, device_id, is_verified, is_admin FROM users")
-                            all_users = [{"id": r[0], "username": r[1], "device": r[2][:8]+"...", "verified": bool(r[3]), "admin": bool(r[4])} for r in await cursor.fetchall()]
-                            await ws.send_str(json.dumps({"action": "admin_users_list", "items": all_users}))
+                        cursor = await db.execute("SELECT id FROM channels WHERE tag = ?", (tag,))
+                        if await cursor.fetchone():
+                            await ws.send_str(json.dumps({"action": "toast", "msg": "Тег @ уже занят!"}))
+                            continue
 
-                elif action == "admin_toggle_verify" and current_user:
-                    target_u = data.get("target")
-                    async with aiosqlite.connect(DB_NAME) as db:
-                        cursor = await db.execute("SELECT is_admin FROM users WHERE username = ?", (current_user,))
-                        adm = await cursor.fetchone()
-                        if adm and adm[0] == 1:
-                            await db.execute("UPDATE users SET is_verified = CASE WHEN is_verified=1 THEN 0 ELSE 1 END WHERE username = ?", (target_u,))
-                            await db.commit()
-                            cursor = await db.execute("SELECT is_verified FROM users WHERE username = ?", (target_u,))
-                            new_v = bool((await cursor.fetchone())[0])
-
-                            # Оповещаем админа об обновлении списка
-                            cursor = await db.execute("SELECT id, username, device_id, is_verified, is_admin FROM users")
-                            all_users = [{"id": r[0], "username": r[1], "device": r[2][:8]+"...", "verified": bool(r[3]), "admin": bool(r[4])} for r in await cursor.fetchall()]
-                            await ws.send_str(json.dumps({"action": "admin_users_list", "items": all_users}))
-
-                            # Если пользователь онлайн, обновляем его галочку без вылета
-                            if target_u in online_users:
-                                await online_users[target_u].send_str(json.dumps({
-                                    "action": "verify_status_changed",
-                                    "verified": new_v
-                                }))
-
-                elif action == "search_users" and current_user:
-                    query = data.get("query", "").strip().lower()
-                    async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute(
-                            "SELECT username, avatar, is_verified FROM users WHERE username LIKE ? AND username != ? LIMIT 15", (f"%{query}%", current_user)
+                            "INSERT INTO channels (name, tag, description, avatar, owner) VALUES (?, ?, ?, ?, ?)",
+                            (name, tag, desc, avatar, current_user)
                         )
-                        results = [{"username": r[0], "avatar": r[1], "verified": bool(r[2])} for r in await cursor.fetchall()]
-                    await ws.send_str(json.dumps({"action": "search_results", "items": results}))
+                        ch_id = cursor.lastrowid
+                        # Создатель автоматически подписывается
+                        await db.execute("INSERT INTO channel_subscribers (channel_id, username) VALUES (?, ?)", (ch_id, current_user))
+                        await db.commit()
 
+                    await ws.send_str(json.dumps({"action": "channel_created", "id": ch_id, "tag": tag}))
+
+                elif action == "get_channels" and current_user:
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cursor = await db.execute("""
+                            SELECT c.id, c.name, c.tag, c.description, c.avatar, c.owner,
+                            (SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = c.id) as subs_count,
+                            EXISTS(SELECT 1 FROM channel_subscribers WHERE channel_id = c.id AND username = ?) as is_sub
+                            FROM channels c
+                        """, (current_user,))
+                        rows = await cursor.fetchall()
+                        ch_list = [{
+                            "id": r[0], "name": r[1], "tag": r[2], "desc": r[3],
+                            "avatar": r[4], "owner": r[5], "subs": r[6], "is_sub": bool(r[7])
+                        } for r in rows]
+                    await ws.send_str(json.dumps({"action": "channels_list", "items": ch_list}))
+
+                elif action == "subscribe_channel" and current_user:
+                    ch_id = data.get("channel_id")
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cursor = await db.execute("SELECT 1 FROM channel_subscribers WHERE channel_id = ? AND username = ?", (ch_id, current_user))
+                        if await cursor.fetchone():
+                            await db.execute("DELETE FROM channel_subscribers WHERE channel_id = ? AND username = ?", (ch_id, current_user))
+                            status = False
+                        else:
+                            await db.execute("INSERT INTO channel_subscribers (channel_id, username) VALUES (?, ?)", (ch_id, current_user))
+                            status = True
+                        await db.commit()
+                        cursor = await db.execute("SELECT COUNT(*) FROM channel_subscribers WHERE channel_id = ?", (ch_id,))
+                        count = (await cursor.fetchone())[0]
+
+                    await ws.send_str(json.dumps({"action": "sub_status", "channel_id": ch_id, "is_sub": status, "count": count}))
+
+                elif action == "get_channel_posts" and current_user:
+                    ch_id = data.get("channel_id")
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cursor = await db.execute("""
+                            SELECT id, sender, text, strftime('%H:%M', timestamp) FROM channel_posts
+                            WHERE channel_id = ? ORDER BY id ASC
+                        """, (ch_id,))
+                        rows = await cursor.fetchall()
+                        posts = [{"id": r[0], "sender": r[1], "text": r[2], "time": r[3]} for r in rows]
+                    await ws.send_str(json.dumps({"action": "channel_history", "channel_id": ch_id, "items": posts}))
+
+                elif action == "post_to_channel" and current_user:
+                    ch_id = data.get("channel_id")
+                    text = data.get("text", "").strip()
+                    if not text: continue
+
+                    async with aiosqlite.connect(DB_NAME) as db:
+                        cursor = await db.execute("SELECT owner FROM channels WHERE id = ?", (ch_id,))
+                        row = await cursor.fetchone()
+                        if not row or row[0] != current_user:
+                            await ws.send_str(json.dumps({"action": "toast", "msg": "Только создатель может писать в канал!"}))
+                            continue
+
+                        cursor = await db.execute("INSERT INTO channel_posts (channel_id, sender, text) VALUES (?, ?, ?)", (ch_id, current_user, text))
+                        await db.commit()
+                        p_id = cursor.lastrowid
+                        cursor = await db.execute("SELECT strftime('%H:%M', timestamp) FROM channel_posts WHERE id = ?", (p_id,))
+                        p_time = (await cursor.fetchone())[0]
+
+                        # Список всех подписчиков для рассылки поста
+                        cursor = await db.execute("SELECT username FROM channel_subscribers WHERE channel_id = ?", (ch_id,))
+                        subscribers = [r[0] for r in await cursor.fetchall()]
+
+                    post_payload = json.dumps({"action": "new_post", "channel_id": ch_id, "id": p_id, "sender": current_user, "text": text, "time": p_time})
+                    for sub in subscribers:
+                        if sub in online_users:
+                            await online_users[sub].send_str(post_payload)
+
+                # --- ЛИЧНЫЕ ДИАЛОГИ (КАК И БЫЛО) ---
                 elif action == "get_chats" and current_user:
                     async with aiosqlite.connect(DB_NAME) as db:
                         cursor = await db.execute("""
@@ -149,7 +234,6 @@ async def ws_handler(request):
                             FROM messages WHERE sender = ? OR recipient = ?
                         """, (current_user, current_user, current_user))
                         peer_names = [r[0] for r in await cursor.fetchall()]
-
                         chats = []
                         for peer in peer_names:
                             p_cur = await db.execute("SELECT username, avatar, is_verified FROM users WHERE username = ?", (peer,))
@@ -172,13 +256,6 @@ async def ws_handler(request):
                         history = [{"id": r[0], "sender": r[1], "recipient": r[2], "text": r[3], "time": r[4] or "12:00", "is_read": r[5]} for r in rows]
 
                     await ws.send_str(json.dumps({"action": "history", "with": target, "items": history}))
-                    if target in online_users:
-                        await online_users[target].send_str(json.dumps({"action": "messages_read", "by": current_user}))
-
-                elif action == "typing" and current_user:
-                    target = data.get("to", "").strip().lower()
-                    if target in online_users:
-                        await online_users[target].send_str(json.dumps({"action": "user_typing", "from": current_user}))
 
                 elif action == "send_msg" and current_user:
                     target = data.get("to", "").strip().lower()
@@ -211,4 +288,5 @@ async def make_app():
     return app
 
 if __name__ == '__main__':
-    web.run_app(make_app(), host='0.0.0.0', port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    web.run_app(make_app(), host='0.0.0.0', port=port)
