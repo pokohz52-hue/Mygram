@@ -92,7 +92,6 @@
         .input-bar { padding: 14px 20px; border-top: 1px solid var(--glass-border); display: flex; gap: 12px; align-items: center; background: rgba(15, 23, 42, 0.4); }
         .input-bar input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); padding: 13px 18px; border-radius: 22px; color: #fff; outline: none; }
 
-        /* Liquid Glass Окна */
         .glass-modal { position: fixed; inset: 0; background: rgba(3, 7, 18, 0.85); backdrop-filter: blur(20px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
         .glass-modal.active { display: flex; }
         .glass-card-box {
@@ -169,8 +168,8 @@
 <div class="glass-modal" id="modalAuth">
     <div class="glass-card-box" id="authBoxLogin">
         <h3>Вход в MyGram 🔐</h3>
-        <p style="color:var(--text-muted); font-size:0.85rem;">Введите логин или Email и пароль</p>
-        <input type="text" id="loginIdent" class="glass-input" placeholder="Логин или Email">
+        <p style="color:var(--text-muted); font-size:0.85rem;">Введите логин и пароль</p>
+        <input type="text" id="loginIdent" class="glass-input" placeholder="Логин">
         <input type="password" id="loginPass" class="glass-input" placeholder="Пароль">
         <button class="glass-btn primary" onclick="submitLogin()">Войти</button>
         <p style="text-align:center; font-size:0.85rem; color:var(--text-muted); cursor:pointer;" onclick="toggleAuthForm('reg')">
@@ -179,23 +178,14 @@
     </div>
 
     <div class="glass-card-box" id="authBoxReg" style="display:none;">
-        <h3>Регистрация ✉️</h3>
-        <p style="color:var(--text-muted); font-size:0.85rem;">Код подтверждения придет на Google почту</p>
-        <input type="text" id="regUser" class="glass-input" placeholder="Придумайте никнейм">
-        <input type="email" id="regEmail" class="glass-input" placeholder="Ваша Google почта">
+        <h3>Регистрация 👤</h3>
+        <p style="color:var(--text-muted); font-size:0.85rem;">Придумайте логин и пароль</p>
+        <input type="text" id="regUser" class="glass-input" placeholder="Логин">
         <input type="password" id="regPass" class="glass-input" placeholder="Пароль (от 6 символов)">
-        <button class="glass-btn primary" onclick="submitRegisterRequest()">Отправить код</button>
+        <button class="glass-btn primary" onclick="submitRegister()">Создать аккаунт</button>
         <p style="text-align:center; font-size:0.85rem; color:var(--text-muted); cursor:pointer;" onclick="toggleAuthForm('login')">
             Уже есть аккаунт? <span style="color:var(--neon-blue);">Войти</span>
         </p>
-    </div>
-
-    <div class="glass-card-box" id="authBoxCode" style="display:none;">
-        <h3>Введите код 📨</h3>
-        <p style="color:var(--text-muted); font-size:0.85rem;" id="codeSentNote">Код отправлен на почту</p>
-        <input type="text" id="verifyCodeInput" class="glass-input" placeholder="6-значный код" maxlength="6" style="text-align:center; font-size:1.3rem; letter-spacing:4px;">
-        <button class="glass-btn primary" onclick="submitVerifyCode()">Подтвердить и войти</button>
-        <p style="text-align:center; font-size:0.85rem; color:var(--text-muted); cursor:pointer;" onclick="toggleAuthForm('reg')">Изменить данные</p>
     </div>
 </div>
 
@@ -220,7 +210,6 @@
     let me = "";
     let currentTab = "chats";
     let activeChat = null;
-    let pendingEmail = "";
 
     function initWS() {
         const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -237,12 +226,6 @@
             if (data.action === "require_login") {
                 document.getElementById("modalAuth").classList.add("active");
                 toggleAuthForm('login');
-            }
-            else if (data.action === "code_sent") {
-                pendingEmail = data.email;
-                document.getElementById("codeSentNote").innerText = `Код отправлен на ${pendingEmail}`;
-                toggleAuthForm('code');
-                showToast("Код отправлен на почту!");
             }
             else if (data.action === "auth_success") {
                 document.getElementById("modalAuth").classList.remove("active");
@@ -306,7 +289,6 @@
     function toggleAuthForm(form) {
         document.getElementById("authBoxLogin").style.display = form === 'login' ? 'flex' : 'none';
         document.getElementById("authBoxReg").style.display = form === 'reg' ? 'flex' : 'none';
-        document.getElementById("authBoxCode").style.display = form === 'code' ? 'flex' : 'none';
     }
 
     function submitLogin() {
@@ -316,19 +298,11 @@
         ws.send(JSON.stringify({ action: "login", identifier: id, password: p }));
     }
 
-    function submitRegisterRequest() {
+    function submitRegister() {
         const u = document.getElementById("regUser").value.trim();
-        const e = document.getElementById("regEmail").value.trim();
         const p = document.getElementById("regPass").value;
-        if (!u || !e || !p) return showToast("Заполните все поля");
-        showToast("Отправка кода на почту...");
-        ws.send(JSON.stringify({ action: "register_request", username: u, email: e, password: p }));
-    }
-
-    function submitVerifyCode() {
-        const c = document.getElementById("verifyCodeInput").value.trim();
-        if (!c) return showToast("Введите код");
-        ws.send(JSON.stringify({ action: "verify_code", email: pendingEmail, code: c }));
+        if (!u || !p) return showToast("Заполните все поля");
+        ws.send(JSON.stringify({ action: "register", username: u, password: p }));
     }
 
     function logout() {
