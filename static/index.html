@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MyGram Quantum</title>
+    <title>MyGram Pro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-body: #050711;
-            --sidebar-bg: rgba(12, 17, 34, 0.82);
-            --chat-bg: rgba(8, 12, 24, 0.58);
+            --sidebar-bg: rgba(12, 17, 34, 0.85);
+            --chat-bg: rgba(8, 12, 24, 0.6);
             --glass-border: rgba(255, 255, 255, 0.08);
             --glass-border-bright: rgba(255, 255, 255, 0.16);
-            --glass-card: rgba(255, 255, 255, 0.035);
+            --glass-card: rgba(255, 255, 255, 0.04);
             --glass-hover: rgba(255, 255, 255, 0.08);
             --primary: #6366f1;
             --primary-glow: rgba(99, 102, 241, 0.45);
@@ -36,7 +36,7 @@
 
         .app-window {
             width: 100vw; height: 100vh; display: flex; position: relative;
-            background: rgba(11, 16, 32, 0.74); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+            background: rgba(11, 16, 32, 0.76); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
             border: 1px solid var(--glass-border); z-index: 1; overflow: hidden;
         }
 
@@ -66,10 +66,6 @@
         .status-dot.online { background: var(--accent-emerald); box-shadow: 0 0 12px rgba(16,185,129,0.9); }
 
         .brand-title { font-weight: 800; font-size: 1.25rem; background: linear-gradient(90deg, #818cf8, var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-
-        .crypto-bar { display: flex; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.22); }
-        .crypto-chip { flex: 1; padding: 8px 12px; border-radius: 14px; background: var(--glass-card); border: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: 0.2s; }
-        .crypto-chip:hover { border-color: var(--accent-cyan); background: rgba(255,255,255,0.06); transform: translateY(-1px); }
 
         .stories-bar { display: flex; gap: 12px; padding: 14px 18px 8px; overflow-x: auto; border-bottom: 1px solid var(--glass-border); }
         .stories-bar::-webkit-scrollbar { display: none; }
@@ -191,7 +187,10 @@
         .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 18px; }
         @keyframes wave { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
 
-        .btn-play-voice { width: 36px; height: 36px; border-radius: 50%; border: none; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .voice-card { display: flex; align-items: center; gap: 10px; min-width: 200px; padding: 4px 0; }
+        .btn-play-voice { width: 36px; height: 36px; border-radius: 50%; border: none; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+        .voice-progress-bar { flex: 1; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; position: relative; overflow: hidden; }
+        .voice-progress-fill { width: 0%; height: 100%; background: var(--accent-cyan); border-radius: 2px; transition: width 0.1s linear; }
 
         .msg-meta { display: flex; align-items: center; justify-content: flex-end; gap: 4px; font-size: 0.72rem; color: rgba(255,255,255,0.6); margin-top: 4px; }
         .read-check { font-weight: 800; font-size: 0.75rem; color: var(--accent-cyan); }
@@ -231,16 +230,13 @@
             box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 0 16px rgba(0,242,254,0.25);
         }
 
-        .input-row-bottom {
-            display: flex; align-items: center; justify-content: space-between;
-        }
-
+        .input-row-bottom { display: flex; align-items: center; justify-content: space-between; }
         .action-tools-group { display: flex; align-items: center; gap: 8px; }
 
         .btn-deck-tool {
             height: 40px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--glass-border);
             background: var(--glass-card); color: #fff; display: flex; align-items: center; gap: 6px;
-            font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+            font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: 0.2s;
         }
         .btn-deck-tool:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-1px); border-color: var(--glass-border-bright); }
         .btn-deck-tool.recording { background: #ef4444; border-color: #ef4444; box-shadow: 0 0 15px rgba(239,68,68,0.5); }
@@ -284,24 +280,15 @@
                 <div>
                     <div style="display:flex; align-items:center; gap:6px;">
                         <span class="brand-title" id="myUsername">MyGram</span>
-                        <span id="myStatusEmoji" style="font-size:0.9rem;">🚀</span>
+                        <span id="myStatusEmoji" style="font-size:0.9rem;">⚡</span>
                         <span id="myBadge"></span>
                     </div>
-                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Quantum OS ⚡</div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);" id="myBio">Личный профиль</div>
                 </div>
             </div>
             <div style="display:flex; gap:6px;">
                 <button class="btn-deck-tool" style="width:38px; height:38px; padding:0; justify-content:center; border-radius:12px;" onclick="openSavedMessages()">🔖</button>
                 <button class="btn-deck-send" style="width:38px; height:38px; padding:0; justify-content:center; border-radius:12px; font-size:1rem;" onclick="logout()">🚪</button>
-            </div>
-        </div>
-
-        <div class="crypto-bar">
-            <div class="crypto-chip" onclick="openTransferModal()">
-                <span>⭐️ Stars:</span> <strong id="valStars" style="color:#fbbf24;">300</strong>
-            </div>
-            <div class="crypto-chip">
-                <span>💎 TON:</span> <strong id="valTon" style="color:var(--accent-cyan);">5.00</strong>
             </div>
         </div>
 
@@ -370,7 +357,6 @@
 
         <!-- ДВУХУРОВНЕВАЯ ПАНЕЛЬ ВВОДА -->
         <div class="chat-input-deck" id="inputBar" style="display: none;">
-            <!-- ВЕРХНИЙ УРОВЕНЬ: СТРОКА ВВОДА СООБЩЕНИЯ -->
             <div class="input-row-top">
                 <input type="text" id="msgInput" class="input-deck-field" placeholder="Написать сообщение или задать вопрос @ai..." oninput="reportTyping()" onkeydown="if(event.key==='Enter') sendAction()">
                 
@@ -382,7 +368,6 @@
                 </div>
             </div>
 
-            <!-- НИЖНИЙ УРОВЕНЬ: ИНСТРУМЕНТЫ И КНОПКА ОТПРАВКИ -->
             <div class="input-row-bottom">
                 <div class="action-tools-group">
                     <input type="file" id="filePicker" accept="image/*" style="display:none;" onchange="handleFileUpload(event)">
@@ -454,19 +439,6 @@
     </div>
 </div>
 
-<!-- Модалка перевода Stars -->
-<div class="glass-modal" id="modalTransfer">
-    <div class="modal-card">
-        <h3>Перевод Stars ⭐️</h3>
-        <input type="text" id="transferTarget" class="input-glass" placeholder="Получатель (@логин)">
-        <input type="number" id="transferAmount" class="input-glass" placeholder="Количество Stars">
-        <div style="display:flex; gap:10px;">
-            <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalTransfer')">Отмена</button>
-            <button class="btn-action" onclick="submitTransferStars()">Отправить</button>
-        </div>
-    </div>
-</div>
-
 <!-- Модалка пересылки -->
 <div class="glass-modal" id="modalForward">
     <div class="modal-card">
@@ -482,15 +454,15 @@
 <!-- Модалка профиля -->
 <div class="glass-modal" id="modalProfile">
     <div class="modal-card">
-        <h3>Профиль и статус 🚀</h3>
+        <h3>Профиль и статус ⚡</h3>
         <div>
             <label style="font-size:0.8rem; color:var(--text-muted);">Статус эмодзи:</label>
             <div style="display:flex; justify-content:space-around; font-size:1.6rem; padding:8px 0;">
                 <span style="cursor:pointer;" onclick="setStatus('⚡')">⚡</span>
                 <span style="cursor:pointer;" onclick="setStatus('👑')">👑</span>
-                <span style="cursor:pointer;" onclick="setStatus('💎')">💎</span>
-                <span style="cursor:pointer;" onclick="setStatus('🚀')">🚀</span>
                 <span style="cursor:pointer;" onclick="setStatus('🔥')">🔥</span>
+                <span style="cursor:pointer;" onclick="setStatus('🚀')">🚀</span>
+                <span style="cursor:pointer;" onclick="setStatus('💫')">💫</span>
                 <span style="cursor:pointer;" onclick="setStatus('')">❌</span>
             </div>
         </div>
@@ -526,7 +498,7 @@
     <div class="modal-card">
         <h3>Создать канал 📢</h3>
         <input type="text" id="newChanName" class="input-glass" placeholder="Название">
-        <input type="text" id="newChanTag" class="input-glass" placeholder="Тег (например: ai)">
+        <input type="text" id="newChanTag" class="input-glass" placeholder="Тег (например: dev)">
         <textarea id="newChanDesc" class="input-glass" rows="3" placeholder="Описание..."></textarea>
         <div style="display:flex; gap:10px;">
             <button class="btn-action" style="background:var(--glass-card);" onclick="closeModal('modalChannel')">Отмена</button>
@@ -538,7 +510,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-    // Canvas Neural Web Background
     const canvas = document.getElementById("neuralCanvas");
     const ctx = canvas.getContext("2d");
     let particles = [];
@@ -635,9 +606,7 @@
                 localStorage.setItem("mg_session_token", data.token);
                 document.getElementById("myUsername").innerText = me;
                 document.getElementById("myAvatar").innerText = me[0].toUpperCase();
-                document.getElementById("myStatusEmoji").innerText = data.emoji_status || "🚀";
-                document.getElementById("valStars").innerText = data.stars || 0;
-                document.getElementById("valTon").innerText = (data.ton || 0).toFixed(2);
+                document.getElementById("myStatusEmoji").innerText = data.emoji_status || "⚡";
 
                 if (data.is_admin) document.getElementById("myBadge").innerHTML = '<span class="admin-badge">ADMIN</span>';
                 else if (data.verified) document.getElementById("myBadge").innerHTML = '<span class="badge-verified">✓</span>';
@@ -647,9 +616,6 @@
             }
             else if (data.action === "auth_error") {
                 showToast(data.msg);
-            }
-            else if (data.action === "balance_update") {
-                document.getElementById("valStars").innerText = data.stars;
             }
             else if (data.action === "poll_update") {
                 updatePollUI(data.id, data.results);
@@ -695,6 +661,8 @@
                     if (meta && !meta.querySelector('.edit-badge')) {
                         const s = document.createElement("span");
                         s.className = "edit-badge";
+                        s.style.opacity = "0.6";
+                        s.style.fontSize = "0.7rem";
                         s.innerText = "(ред.)";
                         meta.prepend(s);
                     }
@@ -779,15 +747,6 @@
     function setStatus(st) {
         ws.send(JSON.stringify({ action: "update_status", status: st }));
         closeModal("modalProfile");
-    }
-
-    function openTransferModal() { document.getElementById("modalTransfer").classList.add("active"); }
-    function submitTransferStars() {
-        const to = document.getElementById("transferTarget").value.trim().toLowerCase().replace("@", "");
-        const amount = parseInt(document.getElementById("transferAmount").value);
-        if (!to || !amount) return showToast("Заполните поля!");
-        ws.send(JSON.stringify({ action: "transfer_stars", to, amount }));
-        closeModal("modalTransfer");
     }
 
     function openSavedMessages() {
@@ -1160,9 +1119,9 @@
             }
         } else if (m.media_type === 'audio' && m.media_data) {
             mediaContent = `
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <button class="btn-play-voice" onclick="playVoiceAudio('${m.media_data}')">▶</button>
-                    <span style="font-size:0.82rem; font-weight:700;">Голосовое</span>
+                <div class="voice-card">
+                    <button class="btn-play-voice" onclick="playVoiceAudio(this, '${m.media_data}')">▶</button>
+                    <div class="voice-progress-bar"><div class="voice-progress-fill"></div></div>
                 </div>`;
         } else if (m.media_type === 'poll' && m.poll_data) {
             const results = m.poll_results || {};
@@ -1250,7 +1209,31 @@
         box.scrollTop = box.scrollHeight;
     }
 
-    function playVoiceAudio(base64) { new Audio(base64).play(); }
+    let activeAudio = null;
+    function playVoiceAudio(btn, base64) {
+        if (activeAudio) {
+            activeAudio.pause();
+            activeAudio = null;
+            document.querySelectorAll('.btn-play-voice').forEach(b => b.innerText = '▶');
+            return;
+        }
+        const audio = new Audio(base64);
+        activeAudio = audio;
+        btn.innerText = '⏸';
+        const card = btn.closest('.voice-card');
+        const fill = card.querySelector('.voice-progress-fill');
+
+        audio.ontimeupdate = () => {
+            const pct = (audio.currentTime / audio.duration) * 100;
+            fill.style.width = pct + '%';
+        };
+        audio.onended = () => {
+            btn.innerText = '▶';
+            fill.style.width = '0%';
+            activeAudio = null;
+        };
+        audio.play();
+    }
 
     async function toggleVoiceRecording() {
         const btn = document.getElementById("voiceBtn");
